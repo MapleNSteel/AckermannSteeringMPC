@@ -38,6 +38,20 @@ def exit_gracefully(signum, frame):
 	# restore the exit gracefully handler here	
 	signal.signal(signal.SIGINT, exit_gracefully)
 
+def getAngles(position, orientation, velocity, angularVelocity):
+	angles=transforms3d.euler.quat2euler(np.array([orientation.w,orientation.x,orientation.y,orientation.z]))
+	rot=np.array(transforms3d.euler.euler2mat(angles[0],angles[1],angles[2]))
+
+	theta=-np.arctan2(velocity.y,velocity.x)
+
+	print(velocity)
+
+	alpha=np.arctan2(-rot[2,1], -rot[2,0])
+	beta=np.arctan2(rot[0,1], rot[0,2])
+	gamma=np.arctan2(rot[0,0], rot[0,2])
+
+	return theta, alpha, beta, gamma
+
 def callbackOdom(msg):
 
 	global pubAlpha, pubBeta, pubGamma, pubTheta
@@ -51,12 +65,14 @@ def callbackOdom(msg):
 	velocity=Twist.linear
 	angularVelocity=Twist.angular	
 
-	angles=transforms3d.euler.quat2euler(np.array([orientation.w,orientation.x,orientation.y,orientation.z]))
-	theta=np.arctan2(velocity.x,velocity.y)
+	theta, alpha, beta, gamma=getAngles(position, orientation, velocity, angularVelocity)
 
-	alpha=angles[0]
-	beta= angles[1]+alpha
-	gamma=angles[2]
+	print(theta+alpha)
+	print("Theta"+str(theta))
+	print("Alpha"+str(alpha))
+	print("Beta"+str(beta))
+	print("Gamma"+str(gamma))
+	print()
 
 	pubTheta.publish(theta)
 	pubAlpha.publish(alpha)

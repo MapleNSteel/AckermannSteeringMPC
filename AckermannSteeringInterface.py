@@ -29,10 +29,8 @@ body_name='nakedAckermannSteeringCar'
 joint_names = ['nakedCar_steeringLeft','nakedCar_steeringRight']
 throttle_joint = ['nakedCar_motorLeft','nakedCar_motorRight']
 
-
-L=3.3138
-Lr=L/2
-Lf=L/2
+Lr=1.2888
+Lf=1.2884
 
 deltaTime = 1./1000
 elapsedTime=0
@@ -61,13 +59,13 @@ def jacobianH(x):
 
 F=jacobianF
 H=jacobianH
-P=np.array([[0, 0, 0],[0, 0, 0],[0, 0, 0]])
+P=np.zeros(3)
 
 p_sigma=1e-10
 o_sigma=1e-10	
 
-Q=np.array([[1, 0, 0],[0, 1, 0],[0, 0, 1]])*(p_sigma**2)
-R=np.array([[1, 0, 0],[0, 1, 0],[0, 0, 1]])*(o_sigma**2)
+Q=np.eye(3)*(p_sigma**2)
+R=np.eye(3)*(o_sigma**2)
 
 def exit_gracefully(signum, frame):
 
