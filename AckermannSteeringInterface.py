@@ -7,11 +7,11 @@ import signal
 import time
 import sys
 import rospy
-from std_msgs.msg import String, Float32
+from std_msgs.msg import String, Float32, Header
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 import transforms3d
-from EKF import ExtendedKalmanFilter
+from KalmanFilters.EKF import ExtendedKalmanFilter
 
 running=True
 
@@ -34,7 +34,8 @@ L=3.3138
 Lr=L/2
 Lf=L/2
 
-deltaTime = 50./1000
+deltaTime = 1./1000
+elapsedTime=0
 
 def h(x):
 	return x
@@ -144,28 +145,28 @@ def setVehicleState(desiredSteeringAngle, desiredSpeed):
 	vrep.simxSetJointTargetPosition(clientID,
 		joint_handles[0],
 		steeringAngleLeft, # force to apply
-		vrep.simx_opmode_blocking)
+		vrep.simx_opmode_streaming)
 	vrep.simxSetJointTargetPosition(clientID,
 		joint_handles[1],
 		steeringAngleRight, # force to apply
-		vrep.simx_opmode_blocking)
+		vrep.simx_opmode_streaming)
 
 	vrep.simxSetJointTargetVelocity(clientID,
 		throttle_handles[0],
 		desiredSpeed, # force to apply
-		vrep.simx_opmode_blocking)
+		vrep.simx_opmode_streaming)
 	vrep.simxSetJointTargetVelocity(clientID,
 		throttle_handles[1],
 		desiredSpeed, # force to apply
-		vrep.simx_opmode_blocking)
+		vrep.simx_opmode_streaming)
 
 def getVehicleState():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime
 
-	ret, xyz=vrep.simxGetObjectPosition(clientID, body_handle[1], -1, vrep.simx_opmode_blocking)
-	Vxyz=vrep.simxGetObjectVelocity(clientID, body_handle[1], vrep.simx_opmode_blocking)
-	ret, rot=vrep.simxGetObjectOrientation(clientID, body_handle[1], -1, vrep.simx_opmode_blocking)
+	ret, xyz=vrep.simxGetObjectPosition(clientID, body_handle[1], -1, vrep.simx_opmode_streaming)
+	Vxyz=vrep.simxGetObjectVelocity(clientID, body_handle[1], vrep.simx_opmode_streaming)
+	ret, rot=vrep.simxGetObjectOrientation(clientID, body_handle[1], -1, vrep.simx_opmode_streaming)
 
 	Pose=np.array([xyz[0],xyz[1],rot[1]])
 	EKF.predict(np.array([desiredSpeed, desiredSteeringAngle]))
@@ -180,6 +181,9 @@ def getVehicleState():
 	orientation=np.array(transforms3d.euler.euler2quat(rot[0],rot[1],rot[2]))
 	velocity=Vxyz[1]
 	angularVelocity=Vxyz[2]
+
+	odom.header.stamp.secs=int(elapsedTime)
+	odom.header.stamp.nsecs=int((elapsedTime-int(elapsedTime))*1e9)
 	
 	odom.pose.pose.position.x=position[0]
 	odom.pose.pose.position.y=position[1]
@@ -222,7 +226,7 @@ def initialisePose():
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime
 	
 	rospy.init_node('Odom')
 
@@ -237,13 +241,10 @@ def main():
 
 	try:
 		global clientID, joint_handles, throttle_handles, d, l
-		openPort()	
-	
-		vrep.simxSynchronous(clientID,True)
+		openPort()
 
 		if clientID != -1: # if we connected successfully
 			startSim()
-			vrep.simxSynchronousTrigger(clientID)
 			initialisePose()
 			EKF=ExtendedKalmanFilter(jacobianF,Q,jacobianH,R,P,f,h,Pose)
 			print ('Connected to remote API server')
@@ -253,7 +254,7 @@ def main():
 		setVehicleState(desiredSteeringAngle, desiredSpeed)
 		getVehicleState()		
 
-		vrep.simxSynchronousTrigger(clientID)
+		elapsedTime+=deltaTime
 		rate.sleep()
 if __name__=="__main__":
 	main()
