@@ -1,6 +1,6 @@
 import numpy as np
 from numpy import pi
-from numpy import tan,arctan,sin,cos
+from numpy import tan,arctan,sin,cos,arctan2
 import vrep
 from time import sleep
 import signal
@@ -50,9 +50,50 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 	return theta, alpha, beta, gamma
 
+def control(x, y, theta, beta):
+
+		global startTime
+
+		[xe, ye, thetae, vDesired, thetaDesired]=traj(time.time()-startTime, x, y, theta, beta)
+
+		print(xe, ye, thetae)
+	
+		desiredSpeed=vDesired*cos(thetae)+0.8*xe
+		td=thetaDesired+vDesired*(0.8*ye+0.5*sin(thetae))
+		
+		desiredSteeringAngle=arctan(1.2888*td/desiredSpeed)
+
+		return [desiredSpeed,desiredSteeringAngle]
+
+def traj(elapsedTime, x, y, theta, beta):
+	
+	t=elapsedTime
+	w=2*pi*0.1*0.5
+	R=5
+
+	xt=R*(1-cos(w*t))
+	yt=R*sin(w*t)
+
+	xe=cos(theta)*(xt-x) + sin(theta)*(yt-y)
+	ye=-sin(theta)*(xt-x) + cos(theta)*(yt-y)
+
+	xd=R*w*sin(w*t)
+	yd=R*w*cos(w*t)
+
+	xdd=R*w*w*cos(w*t)
+	ydd=-R*w*w*sin(w*t)
+
+	thetae=arctan2(yd,xd)-theta
+
+	thetaDesired=(-yd*xdd+xd*ydd)/(yd**2+xd**2)
+	vDesired=yd*sin(arctan2(yd,xd))+xd*cos(arctan2(yd,xd))
+
+	return [xe, ye, thetae, vDesired, thetaDesired]
+
+
 def callbackOdom(msg):
 
-	global pubAlpha, pubBeta, pubGamma, pubTheta
+	global pubThrottle, pubSteering
 
 	Pose=msg.pose.pose
 	Twist=msg.twist.twist
@@ -65,31 +106,29 @@ def callbackOdom(msg):
 
 	theta, alpha, beta, gamma=getAngles(position, orientation, velocity, angularVelocity)
 
+	controlInput=control(position.x,position.y,gamma,theta-gamma)
+	
+	pubThrottle.publish(controlInput[0])
+	pubSteering.publish(controlInput[1])
+
 	print("Theta"+str(theta))
 	print("Alpha"+str(alpha))
 	print("Beta"+str(beta))
 	print("Gamma"+str(gamma))
 	print()
 
-	pubTheta.publish(theta)
-	pubAlpha.publish(alpha)
-	pubBeta.publish(beta)
-	pubGamma.publish(gamma)
-
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, pubAlpha, pubBeta, pubGamma, pubTheta
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering
 	
 	rospy.init_node('Data')
+	startTime=time.time()
 
 	rospy.Subscriber("/ackermann/Odom", Odometry, callbackOdom)
-	pubTheta=rospy.Publisher("/ackermann/Theta", Float32, queue_size=10)
-	pubAlpha=rospy.Publisher("/ackermann/Alpha", Float32, queue_size=10)
-	pubBeta=rospy.Publisher("/ackermann/Beta", Float32, queue_size=10)	
-	pubGamma=rospy.Publisher("/ackermann/Gamma", Float32, queue_size=10)
+	pubThrottle = rospy.Publisher('/ackermann/Throttle', Float32, queue_size=10)
+	pubSteering = rospy.Publisher('/ackermann/Steering', Float32, queue_size=10)
 
 	rate = rospy.Rate(1) # 1000hz
-	pubOdom = rospy.Publisher('/ackermann/Odom', Odometry, queue_size=10)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
 	signal.signal(signal.SIGINT, exit_gracefully)
