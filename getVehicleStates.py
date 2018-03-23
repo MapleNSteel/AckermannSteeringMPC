@@ -42,13 +42,11 @@ def getAngles(position, orientation, velocity, angularVelocity):
 	angles=transforms3d.euler.quat2euler(np.array([orientation.w,orientation.x,orientation.y,orientation.z]))
 	rot=np.array(transforms3d.euler.euler2mat(angles[0],angles[1],angles[2]))
 
-	theta=-np.arctan2(velocity.y,velocity.x)
+	theta=np.arctan2(velocity.y,velocity.x)#Slip
 
-	print(velocity)
-
-	alpha=np.arctan2(-rot[2,1], -rot[2,0])
-	beta=np.arctan2(rot[0,1], rot[0,2])
-	gamma=np.arctan2(rot[0,0], rot[0,2])
+	alpha=np.arctan2(rot[0,1], rot[0,2])
+	beta=np.arctan2(rot[0,0], rot[0,2])
+	gamma=np.arctan2(-rot[2,1], -rot[2,0])
 
 	return theta, alpha, beta, gamma
 
@@ -67,7 +65,6 @@ def callbackOdom(msg):
 
 	theta, alpha, beta, gamma=getAngles(position, orientation, velocity, angularVelocity)
 
-	print(theta+alpha)
 	print("Theta"+str(theta))
 	print("Alpha"+str(alpha))
 	print("Beta"+str(beta))

@@ -61,8 +61,8 @@ F=jacobianF
 H=jacobianH
 P=np.zeros(3)
 
-p_sigma=1e-10
-o_sigma=1e-10	
+p_sigma=1e-5
+o_sigma=1e-5	
 
 Q=np.eye(3)*(p_sigma**2)
 R=np.eye(3)*(o_sigma**2)
@@ -164,19 +164,29 @@ def getVehicleState():
 
 	ret, xyz=vrep.simxGetObjectPosition(clientID, body_handle[1], -1, vrep.simx_opmode_streaming)
 	Vxyz=vrep.simxGetObjectVelocity(clientID, body_handle[1], vrep.simx_opmode_streaming)
-	ret, rot=vrep.simxGetObjectOrientation(clientID, body_handle[1], -1, vrep.simx_opmode_streaming)
+	ret, angles=vrep.simxGetObjectOrientation(clientID, body_handle[1], -1, vrep.simx_opmode_streaming)
 
-	Pose=np.array([xyz[0],xyz[1],rot[1]])
+	rot=np.array(transforms3d.euler.euler2mat(angles[0],angles[1],angles[2]))
+
+	alpha=np.arctan2(-rot[2,1], -rot[2,0])
+	beta=np.arctan2(rot[0,1], rot[0,2])
+
+	Pose=np.array([xyz[0],xyz[1],alpha])
 	EKF.predict(np.array([desiredSpeed, desiredSteeringAngle]))
 	EKF.update(Pose)#update Kalman
 	x,P=EKF.getPrediction()
+
+	rot[2,0]=-np.cos(x[2])
+	rot[2,1]=-np.sin(x[2])*cos(beta)
+	rot[2,2]=np.sin(x[2])*sin(beta)
+
 	#Substituting Estimations
-	xyz[0]=Pose[0]
-	xyz[1]=Pose[1]
-	rot[1]=Pose[2]
+	xyz[0]=x[0]
+	xyz[1]=x[1]
+	angles=np.array(transforms3d.euler.mat2euler(rot))
 
 	position=np.array(xyz)
-	orientation=np.array(transforms3d.euler.euler2quat(rot[0],rot[1],rot[2]))
+	orientation=np.array(transforms3d.euler.euler2quat(angles[0],angles[1],angles[2]))
 	velocity=Vxyz[1]
 	angularVelocity=Vxyz[2]
 
@@ -219,8 +229,13 @@ def initialisePose():
 	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, Pose
 
 	ret, xyz=vrep.simxGetObjectPosition(clientID, body_handle[1], -1, vrep.simx_opmode_blocking)
-	ret, rot=vrep.simxGetObjectOrientation(clientID, body_handle[1], -1, vrep.simx_opmode_blocking)
-	Pose=np.array([xyz[0],xyz[1],rot[1]])
+	ret, angles=vrep.simxGetObjectOrientation(clientID, body_handle[1], -1, vrep.simx_opmode_streaming)
+
+	rot=np.array(transforms3d.euler.euler2mat(angles[0],angles[1],angles[2]))
+
+	alpha=np.arctan2(-rot[2,1], -rot[2,0])
+
+	Pose=np.array([xyz[0],xyz[1],alpha])
 
 def main():
 
