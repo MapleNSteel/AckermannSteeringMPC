@@ -150,6 +150,15 @@ def setVehicleState(desiredSteeringAngle, desiredSpeed):
 		vrep.simx_opmode_streaming)
 
 	vrep.simxSetJointTargetVelocity(clientID,
+		joint_handles[0],
+		desiredSpeed, # force to apply
+		vrep.simx_opmode_streaming)
+	vrep.simxSetJointTargetVelocity(clientID,
+		joint_handles[1],
+		desiredSpeed, # force to apply
+		vrep.simx_opmode_streaming)
+
+	vrep.simxSetJointTargetVelocity(clientID,
 		throttle_handles[0],
 		desiredSpeed, # force to apply
 		vrep.simx_opmode_streaming)
