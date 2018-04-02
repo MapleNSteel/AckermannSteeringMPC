@@ -73,10 +73,10 @@ def control(x, y, theta, beta):
 		[xe, ye, thetae]=traj(x, y, theta, beta)
 		accum=accum+ye
 	
-		desiredSpeed=1#*cos(thetae)+5*xe
+		print([xe, ye, thetae])
+	
+		desiredSpeed=1
 		desiredSteeringAngle=Kp*ye+Ki*accum+Kd*(ye-yePrev)
-
-		print(xe/5, ye, thetae)
 		
 		if(desiredSteeringAngle<-np.pi/3):
 			desiredSteeringAngle=-np.pi/3
@@ -98,12 +98,13 @@ def traj(x, y, theta, beta):
 
 	xt=CC.X(phi)
 	yt=CC.Y(phi)
-	tangent=np.array([CC.tangent(phi)[1],-CC.tangent(phi)[0]])
+	tangent=CC.tangent(phi)
+	normal=np.array([tangent[1],-tangent[0]])
 
 	p=np.array([x-xt, y-yt])
 
-	xe=phi*5
-	ye=np.dot(tangent,p)/np.linalg.norm(tangent)
+	xe=phi
+	ye=np.dot(normal,p)/np.linalg.norm(normal)
 	thetae=theta-arctan2(tangent[1], tangent[0])
 
 	return [xe, ye, thetae]	
