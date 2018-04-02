@@ -32,7 +32,7 @@ throttle_joint = ['nakedCar_motorLeft','nakedCar_motorRight']
 Lr=1.2888
 Lf=1.2884
 
-deltaTime = 1./1000
+deltaTime = 1./100
 elapsedTime=0
 
 def h(x):
@@ -117,8 +117,8 @@ def startSim():
 	# --------------------- Start the simulation
 
 	# start our simulation in lockstep with our code
-	vrep.simxStartSimulation(clientID,
-	        vrep.simx_opmode_blocking)
+	vrep.simxSynchronous(clientID,True)
+	vrep.simxStartSimulation(clientID,vrep.simx_opmode_oneshot)
 
 	joint_handles = [vrep.simxGetObjectHandle(clientID,
 	    name, vrep.simx_opmode_blocking)[1] for name in joint_names]
@@ -255,7 +255,7 @@ def main():
 	rospy.Subscriber("/ackermann/Throttle", Float32, callbackThrottle)
 	rospy.Subscriber("/ackermann/Steering", Float32, callbackSteering)	
 
-	rate = rospy.Rate(1000) # 1000hz
+	rate = rospy.Rate(100) # 1000hz
 	pubOdom = rospy.Publisher('/ackermann/Odom', Odometry, queue_size=10)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
@@ -277,6 +277,7 @@ def main():
 		getVehicleState()		
 
 		elapsedTime+=deltaTime
+		vrep.simxSynchronousTrigger(clientID)
 		rate.sleep()
 if __name__=="__main__":
 	main()

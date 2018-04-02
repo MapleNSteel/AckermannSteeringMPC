@@ -17,7 +17,7 @@ from KalmanFilters.EKF import ExtendedKalmanFilter
 
 running=True
 elapsedTime=0
-deltaTime=1/100.
+deltaTime=1/10.
 
 
 Lr=1.2888
@@ -62,77 +62,39 @@ def control(x, y, theta, beta):
 
 		[xe, ye, thetae, vDesired, thetaDesired]=traj1(time.time()-startTime, x, y, theta, beta)
 	
-		desiredSpeed=vDesired#*cos(thetae)+5*xe
-		td=thetaDesired#+vDesired*(5*ye+10*sin(thetae))
+		desiredSpeed=vDesired
+		td=thetaDesired
 	
-		desiredSteeringAngle=arctan((Lf+Lr)*td/desiredSpeed)
+		if(not np.isnan(np.arcsin(Lr*td/desiredSpeed))):
+			desiredSteeringAngle=arctan((Lf+Lr)*tan(np.arcsin(Lr*td/desiredSpeed))/Lr)
+		else:
+			desiredSteeringAngle=0
 		
 		if(desiredSteeringAngle<-np.pi/4):
 			desiredSteeringAngle=-np.pi/4
 		elif(desiredSteeringAngle>np.pi/4):
 			desiredSteeringAngle=-np.pi/4
 
-def traj2(elapsedTime, x, y, theta, beta):
-	
-	global X,Y
-
-	param1=np.array([0,1.5,0,-0.02])
-	param2=np.array([0,0,0.3,-0.02])
-
-	if(elapsedTime>=5.0):
-		elapsedTime=5.0
-		
-
-	basis=np.array([1,elapsedTime,elapsedTime**2,elapsedTime**3])
-	basisD=np.array([0,1,2*elapsedTime,3*elapsedTime**2])
-	basisDD=np.array([0,0,2,3*2*elapsedTime])
-
-	x=np.dot(param1,basis)
-	y=np.dot(param2,basis)
-
-	X.append(x)
-	Y.append(y)
-
-	xd=np.dot(param1,basisD)
-	yd=np.dot(param2,basisD)
-	
-	xdd=np.dot(param1,basisDD)
-	ydd=np.dot(param2,basisDD)
-
-	thetad=arctan2(yd,xd)
-
-	xe=cos(theta)*(xd-x) + sin(theta)*(yd-y)
-	ye=-sin(theta)*(xd-x) + cos(theta)*(yd-y)
-
-	thetae=thetad-theta
-
-	thetaDesired=((-yd*xdd+xd*ydd)/(xd**2+yd**2))
-	vDesired=(yd*sin(thetad)+xd*cos(thetad))
-
-	#	print(thetaDesired,vDesired)
-
-	return [xe, ye, thetae, vDesired, thetaDesired]
+		return [desiredSpeed,desiredSteeringAngle]
 
 def traj1(elapsedTime, x, y, theta, beta):
 	
 	w=0.1
 	t=elapsedTime
-	T=0.000001
+	T=1
 	
 	tau=2*pi*w*(t+T*np.exp(-t/T))
 	taud=2*pi*w*(1-np.exp(-t/T))
 	taudd=2*pi*w*(np.exp(-t/T)/T)
 
-	r=6
-	c=3
-	a=0.2
-	b=1
+	r=10
+	c=8
 
-	R=r*(b-a*cos(c*tau))
-	Rd=r*a*sin(c*tau)*c*taud
-	Rdd=r*a*cos(c*tau)*((c*taud)**2)+r*a*sin(c*tau)*c*taud
+	R=r*(1-0.1*cos(c*tau))
+	Rd=r*0.1*sin(c*tau)*c*taud
+	Rdd=r*0.1*cos(c*tau)*((c*taud)**2)+0.5*sin(c*tau)*c*taud
 
-	xt=R*cos(tau)-r*(b-a)
+	xt=R*cos(tau)-1
 	yt=R*sin(tau)
 
 	xd=-R*sin(tau)*taud+Rd*cos(tau)
@@ -176,6 +138,7 @@ def traj(elapsedTime, x, y, theta, beta):
 	thetae=arctan2(yd,xd)-theta
 
 	thetaDesired=(-yd*xdd+xd*ydd)/((xd)**2+(yd)**2)
+	print(thetaDesired)
 	vDesired=yd*sin(arctan2(yd,xd))+xd*cos(arctan2(yd,xd))
 
 	return [xe, ye, thetae, vDesired, thetaDesired]
@@ -218,7 +181,7 @@ def main():
 	pubThrottle = rospy.Publisher('/ackermann/Throttle', Float32, queue_size=10)
 	pubSteering = rospy.Publisher('/ackermann/Steering', Float32, queue_size=10)
 
-	rate = rospy.Rate(100) # 1000hz
+	rate = rospy.Rate(1) # 1000hz
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
 	signal.signal(signal.SIGINT, exit_gracefully)
