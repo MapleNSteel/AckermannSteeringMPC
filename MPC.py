@@ -1,5 +1,4 @@
-#RETIRED!!!!
-
+import matplotlib.pyplot as plt
 import numpy as np
 from numpy import pi
 from numpy import tan,arctan,sin,cos,arctan2
@@ -14,14 +13,25 @@ from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 import transforms3d
 from KalmanFilters.EKF import ExtendedKalmanFilter
+from CurvilinearCoordinates import *
 
 running=True
 elapsedTime=0
-deltaTime=1/10.
+deltaTime=10/1000.
 
 
 Lr=1.2888
 Lf=1.2884
+
+L=3.3138
+
+X=[]
+Y=[]
+
+accum=0
+yePrev=0
+
+Kp, Ki, Kd=2.0, 0.03, 100.0
 
 def exit_gracefully(signum, frame):
 
@@ -58,95 +68,49 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, theta, beta):
 
-		global startTime
+		global startTime, velocity, accum, yePrev, Kp, Ki, Kd, pubYe
 
-		[xe, ye, thetae, vDesired, thetaDesired]=traj1(time.time()-startTime, x, y, theta, beta)
+		[xe, ye, thetae]=traj(x, y, theta, beta)
+		accum=accum+ye
 	
-		desiredSpeed=vDesired
-		td=thetaDesired
-	
-		if(not np.isnan(np.arcsin(Lr*td/desiredSpeed))):
-			desiredSteeringAngle=arctan((Lf+Lr)*tan(np.arcsin(Lr*td/desiredSpeed))/Lr)
-		else:
-			desiredSteeringAngle=0
+		desiredSpeed=1#*cos(thetae)+5*xe
+		desiredSteeringAngle=Kp*ye+Ki*accum+Kd*(ye-yePrev)
+
+		print(xe/5, ye, thetae)
 		
-		if(desiredSteeringAngle<-np.pi/4):
-			desiredSteeringAngle=-np.pi/4
-		elif(desiredSteeringAngle>np.pi/4):
-			desiredSteeringAngle=-np.pi/4
+		if(desiredSteeringAngle<-np.pi/3):
+			desiredSteeringAngle=-np.pi/3
+		elif(desiredSteeringAngle>np.pi/3):
+			desiredSteeringAngle=np.pi/3
+
+		yePrev=ye
+
+		pubYe.publish(ye)
 
 		return [desiredSpeed,desiredSteeringAngle]
 
-def traj1(elapsedTime, x, y, theta, beta):
+def traj(x, y, theta, beta):
+
+	global CC
 	
-	w=0.1
-	t=elapsedTime
-	T=1
-	
-	tau=2*pi*w*(t+T*np.exp(-t/T))
-	taud=2*pi*w*(1-np.exp(-t/T))
-	taudd=2*pi*w*(np.exp(-t/T)/T)
+	CC.setCoordinates(x,y)
+	phi=CC.getCoordinates()+0.01
 
-	r=10
-	c=8
+	xt=CC.X(phi)
+	yt=CC.Y(phi)
+	tangent=np.array([CC.tangent(phi)[1],-CC.tangent(phi)[0]])
 
-	R=r*(1-0.1*cos(c*tau))
-	Rd=r*0.1*sin(c*tau)*c*taud
-	Rdd=r*0.1*cos(c*tau)*((c*taud)**2)+0.5*sin(c*tau)*c*taud
+	p=np.array([x-xt, y-yt])
 
-	xt=R*cos(tau)-1
-	yt=R*sin(tau)
+	xe=phi*5
+	ye=np.dot(tangent,p)/np.linalg.norm(tangent)
+	thetae=theta-arctan2(tangent[1], tangent[0])
 
-	xd=-R*sin(tau)*taud+Rd*cos(tau)
-	yd=R*cos(tau)*taud+Rd*sin(tau)
-
-	xdd=-R*cos(tau)*(taud**2)-R*sin(tau)*taudd+Rdd*cos(tau)-Rd*sin(tau)*taud
-	ydd=-R*sin(tau)*(taud**2)+R*cos(tau)*taudd+Rdd*sin(tau)+Rd*cos(tau)*taud
-
-	xe=cos(theta)*(xt-x) + sin(theta)*(yt-y)
-	ye=-sin(theta)*(xt-x) + cos(theta)*(yt-y)
-
-	thetae=arctan2(yd,xd)-theta
-
-	thetaDesired=(-yd*xdd+xd*ydd)/((xd)**2+(yd)**2)
-	vDesired=yd*sin(arctan2(yd,xd))+xd*cos(arctan2(yd,xd))
-
-	return [xe, ye, thetae, vDesired, thetaDesired]
-
-def traj(elapsedTime, x, y, theta, beta):
-	
-	w=0.1
-	t=elapsedTime
-	T=1
-	
-	tau=2*pi*w*(t+T*np.exp(-t/T))
-	taud=2*pi*w*(1-np.exp(-t/T))
-	taudd=2*pi*w*(np.exp(-t/T)/T)
-
-	xt=0.1*tau
-	yt=5*sin(0.5*tau)
-
-	xd=0.5*taud
-	yd=5*0.5*cos(0.5*tau)*taud
-
-	xdd=0.5*taudd
-	ydd=-5*0.5*0.5*sin(tau)*(taud**2)+5*0.5*cos(tau)*taudd
-
-	xe=cos(theta)*(xt-x) + sin(theta)*(yt-y)
-	ye=-sin(theta)*(xt-x) + cos(theta)*(yt-y)
-
-	thetae=arctan2(yd,xd)-theta
-
-	thetaDesired=(-yd*xdd+xd*ydd)/((xd)**2+(yd)**2)
-	print(thetaDesired)
-	vDesired=yd*sin(arctan2(yd,xd))+xd*cos(arctan2(yd,xd))
-
-	return [xe, ye, thetae, vDesired, thetaDesired]
-
+	return [xe, ye, thetae]	
 
 def callbackOdom(msg):
 
-	global pubThrottle, pubSteering
+	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity
 
 	Pose=msg.pose.pose
 	Twist=msg.twist.twist
@@ -172,7 +136,7 @@ def callbackOdom(msg):
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubYe, CC
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -181,7 +145,15 @@ def main():
 	pubThrottle = rospy.Publisher('/ackermann/Throttle', Float32, queue_size=10)
 	pubSteering = rospy.Publisher('/ackermann/Steering', Float32, queue_size=10)
 
-	rate = rospy.Rate(1) # 1000hz
+	pubYe = rospy.Publisher('/ackermann/Ye', Float32, queue_size=10)
+
+	rate = rospy.Rate(100) # 1000hz
+
+	X=lambda t: 5*cos(t)-5
+	Y=lambda t: 5*sin(t)
+	tangent=lambda t: np.array([-5*sin(t), 5*cos(t)])
+
+	CC=CurvilinearCoordinates(X,Y,tangent)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
 	signal.signal(signal.SIGINT, exit_gracefully)
