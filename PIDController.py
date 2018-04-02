@@ -94,7 +94,7 @@ def traj(x, y, theta, beta):
 	global CC
 	
 	CC.setCoordinates(x,y)
-	phi=CC.getCoordinates()+0.01
+	phi=CC.getCoordinates()
 
 	xt=CC.X(phi)
 	yt=CC.Y(phi)
