@@ -1,3 +1,5 @@
+#Cannot track poly!!
+
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import pi
@@ -31,7 +33,7 @@ Y=[]
 accum=0
 yePrev=0
 
-Kp, Ki, Kd=2.0, 0.03, 100.0
+Kp, Ki, Kd=2.0, 0.08, 200.0
 
 def exit_gracefully(signum, frame):
 
@@ -68,14 +70,15 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, theta, beta):
 
-		global startTime, velocity, accum, yePrev, Kp, Ki, Kd, pubYe
+		global startTime, velocity, accum, yePrev, Kp, Ki, Kd, pubYe, CC, CC1, CC2
 
-		[xe, ye, thetae]=traj(x, y, theta, beta)
+		cc=CC2
+		[xe, ye, thetae]=traj(x, y, theta, cc)
 		accum=accum+ye
 	
 		print([xe, ye, thetae])
 	
-		desiredSpeed=1
+		desiredSpeed=2
 		desiredSteeringAngle=Kp*ye+Ki*accum+Kd*(ye-yePrev)
 		
 		if(desiredSteeringAngle<-np.pi/3):
@@ -89,16 +92,14 @@ def control(x, y, theta, beta):
 
 		return [desiredSpeed,desiredSteeringAngle]
 
-def traj(x, y, theta, beta):
-
-	global CC
+def traj(x, y, theta, cc):
 	
-	CC.setCoordinates(x,y)
-	phi=CC.getCoordinates()
+	cc.setCoordinates(x,y)
+	phi=cc.getCoordinates()+0.05
 
-	xt=CC.X(phi)
-	yt=CC.Y(phi)
-	tangent=CC.tangent(phi)
+	xt=cc.X(phi)
+	yt=cc.Y(phi)
+	tangent=cc.tangent(phi)
 	normal=np.array([tangent[1],-tangent[0]])
 
 	p=np.array([x-xt, y-yt])
@@ -107,7 +108,8 @@ def traj(x, y, theta, beta):
 	ye=np.dot(normal,p)/np.linalg.norm(normal)
 	thetae=theta-arctan2(tangent[1], tangent[0])
 
-	return [xe, ye, thetae]	
+	return [xe, ye, thetae]
+	
 
 def callbackOdom(msg):
 
@@ -137,7 +139,7 @@ def callbackOdom(msg):
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubYe, CC
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubYe, CC, CC1, CC2
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -155,6 +157,18 @@ def main():
 	tangent=lambda t: np.array([-5*sin(t), 5*cos(t)])
 
 	CC=CurvilinearCoordinates(X,Y,tangent)
+
+	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-5
+	Y1=lambda t: 5*(1-0.1*cos(3*t))*sin(t)
+	tangent1=lambda t: np.array([5*(0.1*3*sin(3*t))*cos(t)-5*(1-0.1*cos(3*t))*sin(t), 5*(0.1*3*sin(3*t))*sin(t)+5*(0.1*cos(3*t))*cos(t)])
+
+	CC1=CurvilinearCoordinates(X1,Y1,tangent1)
+
+	X2=lambda t: 0.1*(.05*t**2+0.15*t**3)
+	Y2=lambda t: t
+	tangent2=lambda t: np.array([0.1*(0.05*2*t+0.15*3*t**2), 1])
+
+	CC2=CurvilinearCoordinates(X2,Y2,tangent2)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
 	signal.signal(signal.SIGINT, exit_gracefully)
