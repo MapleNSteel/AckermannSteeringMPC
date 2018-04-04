@@ -61,11 +61,11 @@ F=jacobianF
 H=jacobianH
 P=np.zeros(3)
 
-p_sigma=1e-5
-o_sigma=1e-5	
+p_var=5e-2
+o_var=5e-2
 
-Q=np.eye(3)*(p_sigma**2)
-R=np.eye(3)*(o_sigma**2)
+Q=np.eye(3)*(p_var)
+R=np.eye(3)*(o_var)
 
 def exit_gracefully(signum, frame):
 
