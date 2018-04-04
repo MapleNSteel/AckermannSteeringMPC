@@ -106,8 +106,7 @@ def traj(x, y, theta, beta):
 
 	xe=phi
 	ye=np.dot(normal,p)/np.linalg.norm(normal)
-	thetae=theta-arctan2(tangent[1], tangent[0])
-
+	thetae=fmod(theta-arctan2(tangent[1], tangent[0]),2*pi)
 	return [phi, ye, thetae]	
 
 def callbackOdom(msg):

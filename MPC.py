@@ -98,13 +98,14 @@ def traj(x, y, theta, beta):
 
 	xt=CC.X(phi)
 	yt=CC.Y(phi)
-	tangent=np.array([CC.tangent(phi)[1],-CC.tangent(phi)[0]])
+	tangent=cc.tangent(phi)
+	normal=np.array([tangent[1],-tangent[0]])
 
 	p=np.array([x-xt, y-yt])
 
-	xe=phi*5
-	ye=np.dot(tangent,p)/np.linalg.norm(tangent)
-	thetae=theta-arctan2(tangent[1], tangent[0])
+	xe=phi
+	ye=np.dot(normal,p)/np.linalg.norm(normal)
+	thetae=fmod(theta-arctan2(tangent[1], tangent[0]),2*pi)
 
 	return [xe, ye, thetae]	
 

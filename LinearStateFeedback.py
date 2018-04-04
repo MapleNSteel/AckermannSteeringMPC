@@ -4,6 +4,7 @@ from numpy import pi
 from numpy import tan,arctan,sin,cos,arctan2,sign,fmod
 import vrep
 from time import sleep
+import math
 import signal
 import time
 import sys
@@ -82,11 +83,12 @@ def control(x, y, theta, beta):
 		desiredSpeed=1#Kt.dot(np.array([ye,thetae]))
 		desiredSteeringAngle=Ks.dot(np.array([ye,thetae]))
 	
-		T=T+(phi-phiPrev)/ds
-		phiPrev=phi
+		if(not math.isnan(1/ds)):
+			T=T+((phi*5-phiPrev)/ds)
+		phiPrev=phi*5
 
-		print(desiredSpeed,desiredSteeringAngle)
-		print(phi, ye, thetae, ds)
+		#print(desiredSpeed,desiredSteeringAngle)
+		print(phi, ye, thetae, T)
 		
 		if(desiredSteeringAngle<-np.pi/3):
 			desiredSteeringAngle=-np.pi/3
@@ -95,7 +97,7 @@ def control(x, y, theta, beta):
 
 		yePrev=ye
 
-		pubYe.publish(ye)
+		pubYe.publish(T)
 
 		return [desiredSpeed,desiredSteeringAngle]
 
@@ -106,14 +108,15 @@ def traj(x, y, v, theta, cc):
 
 	xt=cc.X(phi)
 	yt=cc.Y(phi)
-	tangent=np.array([cc.tangent(phi)[1],-cc.tangent(phi)[0]])
+	tangent=cc.tangent(phi)
+	normal=np.array([tangent[1],-tangent[0]])
 
 	p=np.array([x-xt, y-yt])
 
-	xe=phi*5
-	ye=np.linalg.norm(np.array([x-xt,y-yt]))
+	xe=phi
+	ye=np.dot(normal,p)/np.linalg.norm(normal)
 	thetae=fmod(theta-arctan2(tangent[1], tangent[0]),2*pi)
-	ds=(cc.rho(phi)/(cc.rho(phi)-ye))*(velocity.x*cos(thetae)-velocity.y*sin(thetae))
+	ds=abs((cc.rho(phi)/(cc.rho(phi)-ye))*(velocity.x*cos(thetae)-velocity.y*sin(thetae)))
 
 	return [phi, ye, thetae, ds]	
 
