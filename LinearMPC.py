@@ -95,7 +95,7 @@ def control(x, y, theta, beta):
 def traj(x, y, theta, cc):
 	
 	cc.setCoordinates(x,y)
-	phi=cc.getCoordinates()+0.05
+	phi=cc.getCoordinates()
 
 	xt=cc.X(phi)
 	yt=cc.Y(phi)

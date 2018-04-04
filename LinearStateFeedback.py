@@ -1,4 +1,3 @@
-#Can't handle lower speeds
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import pi
@@ -32,7 +31,8 @@ Y=[]
 accum=0
 yePrev=0
 
-Kp, Ki, Kd=2.0, 0.005, 100.0
+Ks=np.array([0,0])
+Kt=np.array([0,0])
 
 def exit_gracefully(signum, frame):
 
@@ -74,9 +74,10 @@ def control(x, y, theta, beta):
 		[phi, ye, thetae]=traj(x, y, theta, beta)
 		accum=accum+ye
 	
-		desiredSpeed=5
-		desiredSteeringAngle=Kp*ye+Ki*accum+Kd*(ye-yePrev)
+		desiredSpeed=Kt.dot(np.array([ye,thetae]))
+		desiredSteeringAngle=Ks.dot(np.array([ye,thetae]))
 
+		print(desiredSpeed,desiredSteeringAngle)
 		print(phi, ye, thetae)
 		
 		if(desiredSteeringAngle<-np.pi/3):
@@ -104,7 +105,7 @@ def traj(x, y, theta, beta):
 	p=np.array([x-xt, y-yt])
 
 	xe=phi*5
-	ye=np.dot(tangent,p)/np.linalg.norm(tangent)
+	ye=np.linalg.norm(np.array([x-xt,y-yt]))
 	thetae=theta-arctan2(tangent[1], tangent[0])
 
 	return [phi, ye, thetae]	
