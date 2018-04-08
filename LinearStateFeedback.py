@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 from numpy import pi
 from numpy import tan,arctan,sin,cos,arctan2,sign,fmod
 import vrep
@@ -31,7 +32,7 @@ Y=[]
 
 accum=0
 yePrev=0
-phiPrev=0
+xePrev=0
 
 Ks=np.array([1,0.01])
 Kt=np.array([1,10])
@@ -73,22 +74,22 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, theta, beta):
 
-		global startTime, velocity, accum, yePrev, Kp, Ki, Kd, pubYe, CC, CC1, CC2,phiPrev, T
+		global startTime, velocity, accum, yePrev, Kp, Ki, Kd, pubYe, CC, CC1, CC2,xePrev, T
 
-		cc=CC
+		cc=CC1
 		
-		[phi, ye, thetae, ds]=traj(x, y, velocity, theta, cc)
+		[phi, xe, ye, thetae, ds]=traj(x, y, velocity, theta, cc)
 		accum=accum+ye
 	
 		desiredSpeed=1#Kt.dot(np.array([ye,thetae]))
 		desiredSteeringAngle=Ks.dot(np.array([ye,thetae]))
 	
-		if(not math.isnan(1/ds)):
-			T=T+((phi*5-phiPrev)/ds)
-		phiPrev=phi*5
+		if(not ds==0):
+			T=T+((xe-xePrev)/ds)
+		xePrev=xe
 
 		#print(desiredSpeed,desiredSteeringAngle)
-		print(phi, ye, thetae, T)
+		print("phi:"+str(phi)+"    xe:"+str(xe)+"    ye:"+str(ye)+"    thetae:"+str(thetae)+"    ds:"+str(ds)+"    T:"+str(T))
 		
 		if(desiredSteeringAngle<-np.pi/3):
 			desiredSteeringAngle=-np.pi/3
@@ -113,12 +114,12 @@ def traj(x, y, v, theta, cc):
 
 	p=np.array([x-xt, y-yt])
 
-	xe=phi
+	xe=scipy.integrate.quad(lambda x: np.sqrt(cc.tangent(x)[0]**2+cc.tangent(x)[1]**2), 0, phi)[0]
 	ye=np.dot(normal,p)/np.linalg.norm(normal)
-	thetae=fmod(theta-arctan2(tangent[1], tangent[0]),2*pi)
-	ds=abs((cc.rho(phi)/(cc.rho(phi)-ye))*(velocity.x*cos(thetae)-velocity.y*sin(thetae)))
+	thetae=theta-arctan2(tangent[1], tangent[0])
+	ds=(cc.rho(phi)/(cc.rho(phi)-ye))*(velocity.x*cos(thetae)-velocity.y*sin(thetae))
 
-	return [phi, ye, thetae, ds]	
+	return [phi, xe, ye, thetae, ds]	
 
 def callbackOdom(msg):
 
@@ -169,7 +170,7 @@ def main():
 
 	CC=CurvilinearCoordinates(X,Y,tangent,rho)
 
-	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-5
+	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-4.5
 	Y1=lambda t: 5*(1-0.1*cos(3*t))*sin(t)
 	tangent1=lambda t: np.array([5*(0.1*3*sin(3*t))*cos(t)-5*(1-0.1*cos(3*t))*sin(t), 5*(0.1*3*sin(3*t))*sin(t)+5*(0.1*cos(3*t))*cos(t)])
 	rho1= lambda t: (abs((cos(2*t) + 4*cos(4*t) - 5*cos(t))/(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2) - ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(sin(2*t)/2 + sin(4*t) - 5*sin(t)))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2 + abs((10*sin(t) + 36*cos(t)*sin(t) - 64*cos(t)**3*sin(t))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)) + ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3))/(4*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2)**(1/2)/(abs(8*cos(t)**4 - 9*cos(t)**2 - 5*cos(t) + 3/2)**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)

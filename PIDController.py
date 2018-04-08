@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import pi
-from numpy import tan,arctan,sin,cos,arctan2
+from numpy import tan,arctan,sin,cos,arctan2,fmod
 import vrep
 from time import sleep
 import signal
@@ -71,7 +71,7 @@ def control(x, y, theta, beta):
 
 		global startTime, velocity, accum, yePrev, Kp, Ki, Kd, pubYe
 
-		[phi, ye, thetae]=traj(x, y, theta, beta)
+		[phi, ye, thetae]=traj(x, y, theta, beta,CC)
 		accum=accum+ye
 	
 		desiredSpeed=5
@@ -90,16 +90,14 @@ def control(x, y, theta, beta):
 
 		return [desiredSpeed,desiredSteeringAngle]
 
-def traj(x, y, theta, beta):
-
-	global CC
+def traj(x, y, theta, beta, CC):
 	
 	CC.setCoordinates(x,y)
 	phi=CC.getCoordinates()
 
 	xt=CC.X(phi)
 	yt=CC.Y(phi)
-	tangent=cc.tangent(phi)
+	tangent=CC.tangent(phi)
 	normal=np.array([tangent[1],-tangent[0]])
 
 	p=np.array([x-xt, y-yt])
@@ -129,6 +127,8 @@ def callbackOdom(msg):
 	pubThrottle.publish(controlInput[0])
 	pubSteering.publish(controlInput[1])
 
+	
+
 	#print("Theta"+str(theta))
 	#print("Alpha"+str(alpha))
 	#print("Beta"+str(beta))
@@ -154,18 +154,23 @@ def main():
 	Y=lambda t: 5*sin(t)
 	tangent=lambda t: np.array([-5*sin(t), 5*cos(t)])
 
-	CC=CurvilinearCoordinates(X,Y,tangent)
+	rho=lambda t: (abs(sign(cos(t))**2*cos(t)*sin(t)**2 + sign(sin(t))**2*cos(t)**3)**2 + abs(sign(cos(t))**2*sin(t)**3 + sign(sin(t))**2*cos(t)**2*sin(t))**2)**(1/2)/(5*abs(sign(cos(t)))**2*abs(sign(sin(t)))**2*(abs(cos(t))**2 + abs(sin(t))**2)**2)
 
-	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-5
+	CC=CurvilinearCoordinates(X,Y,tangent,rho)
+
+	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-4.5
 	Y1=lambda t: 5*(1-0.1*cos(3*t))*sin(t)
 	tangent1=lambda t: np.array([5*(0.1*3*sin(3*t))*cos(t)-5*(1-0.1*cos(3*t))*sin(t), 5*(0.1*3*sin(3*t))*sin(t)+5*(0.1*cos(3*t))*cos(t)])
+	rho1= lambda t: (abs((cos(2*t) + 4*cos(4*t) - 5*cos(t))/(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2) - ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(sin(2*t)/2 + sin(4*t) - 5*sin(t)))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2 + abs((10*sin(t) + 36*cos(t)*sin(t) - 64*cos(t)**3*sin(t))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)) + ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3))/(4*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2)**(1/2)/(abs(8*cos(t)**4 - 9*cos(t)**2 - 5*cos(t) + 3/2)**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)
 
-	CC=CurvilinearCoordinates(X1,Y1,tangent1)
+	CC1=CurvilinearCoordinates(X1,Y1,tangent1,rho1)
 
 	X2=lambda t: 0.1*(.05*t**2+0.15*t**3)
 	Y2=lambda t: t
 	tangent2=lambda t: np.array([0.1*(0.05*2*t+0.15*3*t**2), 1])
-
+	rho2= lambda t: (400*(abs((9*t + 1)*(4*t**2 - 36*t**3*sign(t*(9*t + 2))**2 - 81*t**4*sign(t*(9*t + 2))**2 - 4*t**2*sign(t*(9*t + 2))**2 + 36*t**3 + 81*t**4 + 40000*sign(t*(9*t + 2))**2))**2 + 40000*abs(t*(9*t + 2))**2*abs(sign(t*(9*t + 2))*(9*t + 1))**2*abs(sign(t*(9*t + 2)))**4)**(1/2))/(abs(sign(t*(9*t + 2)))**2*(abs(t*(9*t + 2))**2 + 40000)**2)
+			
+	CC2=CurvilinearCoordinates(X2,Y2,tangent1,rho2)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
 	signal.signal(signal.SIGINT, exit_gracefully)

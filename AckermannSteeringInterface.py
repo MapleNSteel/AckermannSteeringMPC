@@ -52,7 +52,7 @@ def jacobianF(x,u):
 
 	beta=arctan((Lr/(Lf+Lr))*tan(u[1]))
 
-	return np.array(np.eye(3))+np.array([[0,0,-u[0]*sin(x[2]+beta)*(u[0]/Lr)*sin(beta)],[0,0,u[0]*cos(x[2]+beta)*(u[0]/Lr)*sin(beta)],[0,0,0]])
+	return np.array([[0,0,0],[0,0,0],[-u[0]*sin(x[2]+beta),u[0]*cos(x[2]+beta),0]])
 
 def jacobianH(x):
 	return np.array([[1, 0, 0],[0, 1, 0],[0, 0, 1]])
@@ -61,8 +61,8 @@ F=jacobianF
 H=jacobianH
 P=np.zeros(3)
 
-p_var=5e-2
-o_var=5e-2
+p_var=5e-6
+o_var=5e-5
 
 Q=np.eye(3)*(p_var)
 R=np.eye(3)*(o_var)
