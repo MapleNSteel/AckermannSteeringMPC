@@ -62,7 +62,7 @@ H=jacobianH
 P=np.zeros(3)
 
 p_var=5e-6
-o_var=5e-5
+o_var=5e-4
 
 Q=np.eye(3)*(p_var)
 R=np.eye(3)*(o_var)
