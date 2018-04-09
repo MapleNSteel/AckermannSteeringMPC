@@ -3,7 +3,6 @@
 import numpy as np
 from numpy import pi
 from numpy import tan,arctan,sin,cos,arctan2
-import vrep
 from time import sleep
 import signal
 import time

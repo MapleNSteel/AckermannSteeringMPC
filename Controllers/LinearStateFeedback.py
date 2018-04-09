@@ -3,7 +3,6 @@ import numpy as np
 import scipy
 from numpy import pi
 from numpy import tan,arctan,sin,cos,arctan2,sign,fmod
-import vrep
 from time import sleep
 import math
 import signal
@@ -35,7 +34,7 @@ yePrev=0
 xePrev=0
 
 Ks=np.array([1,0.01])
-Kt=np.array([1,10])
+Kt=np.array([5,10])
 
 T=0
 
