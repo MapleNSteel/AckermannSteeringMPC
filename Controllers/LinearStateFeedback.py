@@ -1,3 +1,4 @@
+#Doesnae Work Raegh
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
@@ -34,7 +35,7 @@ yePrev=0
 xePrev=0
 
 Ks=np.array([1,0.01])
-Kt=np.array([5,10])
+Kt=np.array([20,0.1])
 
 T=0
 
