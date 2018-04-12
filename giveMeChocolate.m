@@ -4,6 +4,6 @@ function [deriv,tangent,rho] = giveMeChocolate(vec)
     syms t
     deriv=simplify(diff(vec, t));
     tangent=simplify(deriv/norm(deriv));
-    rho=simplify(norm(diff(tangent, t))/norm(deriv));
+    rho=1/simplify(norm(diff(tangent, t))/norm(deriv));
 end
 

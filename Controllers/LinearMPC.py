@@ -1,14 +1,16 @@
-#Cannot track poly!!
-
+#Doesnae Work Raeght
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 from numpy import pi
-from numpy import tan,arctan,sin,cos,arctan2
+from numpy import tan,arctan,sin,cos,arctan2,sign,fmod,sqrt
 from time import sleep
+import math
 import signal
 import time
 import sys
 import rospy
+import cvxopt
 from std_msgs.msg import String, Float32, Header
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
@@ -26,13 +28,33 @@ Lf=1.2884
 
 L=3.3138
 
-X=[]
-Y=[]
+controlInput=np.array([[0],[0]])
 
-accum=0
-yePrev=0
+Q=cvxopt.matrix(np.eye(2))*1000#Running Cost - x
+R=cvxopt.matrix(np.eye(2))*1#Running Cost - u
+P=cvxopt.matrix(np.eye(2))*1000#Terminal Cost -x
 
-Kp, Ki, Kd=2.0, 0.03, 100.0
+N=80 #Window length
+def jacobianF(x,u):
+
+	beta=arctan((Lr/(Lf+Lr))*tan(u[1]))
+
+	return np.array(np.eye(2))+np.transpose(np.array([[0, 0],[0, u[0]*cos(x[1] + beta)]]))*deltaTime
+
+def jacobianH(x,u):
+
+	beta=arctan((Lr/(Lf+Lr))*tan(u[1]))
+
+	return np.transpose(np.array(
+[
+[deltaTime*sin(x[1] + arctan((Lf*tan(u[1]))/(Lf + Lr))),
+ (Lf*deltaTime*tan(u[1]))/(Lr*(Lf + Lr)*((Lf**2*tan(u[1])**2)/(Lf + Lr)**2 + 1)**(1/2))],
+
+[deltaTime*sin(x[1] + arctan((Lf*tan(u[1]))/(Lf + Lr))),
+ (Lf*deltaTime*tan(u[1]))/(Lr*(Lf + Lr)*((Lf**2*tan(u[1])**2)/(Lf + Lr)**2 + 1)**(1/2))]
+]))
+
+T=0
 
 def exit_gracefully(signum, frame):
 
@@ -69,50 +91,63 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, theta, beta):
 
-		global startTime, velocity, accum, yePrev, Kp, Ki, Kd, pubYe, CC, CC1, CC2
+	global Q, R, P, controlInput, pubYe
 
-		cc=CC1
-		[xe, ye, thetae]=traj(x, y, theta, cc)
-		accum=accum+ye
+	cc=CC
+	[phi, xe, ye, thetae, ds]=traj(x, y, velocity, theta, cc)
+	pubYe.publish(ye)
 	
-		print([xe, ye, thetae])
+	x=cvxopt.matrix(np.array([[ye], [thetae]]))
+
+	Qs=cvxopt.spdiag([Q if i<(N-1) else P for i in range(0,N)])
+	Rs=cvxopt.spdiag([R for i in range(0,N)])
+
+	B=cvxopt.matrix(jacobianH(x,cvxopt.matrix(controlInput)))
+	C=cvxopt.matrix(np.eye(2))
+	A=cvxopt.matrix(jacobianF(x, cvxopt.matrix(controlInput)))
+
+	G=cvxopt.sparse([C*(A**i) for i in range(0,N)])
+	H=cvxopt.sparse([cvxopt.sparse([[C*(A**j)*B if j<=i else cvxopt.matrix(np.zeros(np.shape(B)))] for j in range(0,N)]) for i in range(0,N)])
+
+	#Final Matrice
+	Y=Rs+H.trans()*Qs.trans()*H
+	PHI=cvxopt.sparse([G.trans()*Qs*G])
+	F=2*G.trans()*Qs*H
+
+	P1=2*Y
+	q=(x.trans()*F).trans()
+
+	G1=cvxopt.spdiag([cvxopt.matrix([[0,1], [0,-1]]).trans() for i in range(0,N)])
+	c1=cvxopt.matrix(np.array([[pi/3],[pi/3]]))
+	h1=cvxopt.matrix(cvxopt.sparse([c1 for i in range(0,N)]), (N*2,1))
+	sol=cvxopt.solvers.qp(P1,q,G1,h1)
+
+	controlInput=sol['x'][0:2]
+
+	return np.array(controlInput)
+
+def traj(x, y, v, theta, cc):
 	
-		desiredSpeed=2
-		desiredSteeringAngle=Kp*ye+Ki*accum+Kd*(ye-yePrev)
-		
-		if(desiredSteeringAngle<-np.pi/3):
-			desiredSteeringAngle=-np.pi/3
-		elif(desiredSteeringAngle>np.pi/3):
-			desiredSteeringAngle=np.pi/3
+	CC.setCoordinates(x,y)
+	phi=CC.getCoordinates()
 
-		yePrev=ye
-
-		pubYe.publish(ye)
-
-		return [desiredSpeed,desiredSteeringAngle]
-
-def traj(x, y, theta, cc):
-	
-	cc.setCoordinates(x,y)
-	phi=cc.getCoordinates()
-
-	xt=cc.X(phi)
-	yt=cc.Y(phi)
-	tangent=cc.tangent(phi)
+	xt=CC.X(phi+0.01)
+	yt=CC.Y(phi+0.01)
+	tangent=CC.tangent(phi)
+	thetat=arctan2(tangent[1], tangent[0])
+	print(arctan2(tangent[1], tangent[0]))
 	normal=np.array([tangent[1],-tangent[0]])
 
-	p=np.array([x-xt, y-yt])
+	xe=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
+	ye=cos(thetat)*(y-yt) - sin(thetat)*(x-xt)
+	thetae=theta-thetat
+	dt=(CC.rho(phi)/(CC.rho(phi)-ye))*(velocity.x*cos(thetae)-velocity.y*sin(thetae))
 
-	xe=phi
-	ye=np.dot(normal,p)/np.linalg.norm(normal)
-	thetae=theta-arctan2(tangent[1], tangent[0])
-
-	return [xe, ye, thetae]
-	
+	return [phi, xe, ye, thetae, dt]	
 
 def callbackOdom(msg):
 
-	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity
+	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, controlInput
 
 	Pose=msg.pose.pose
 	Twist=msg.twist.twist
@@ -126,7 +161,9 @@ def callbackOdom(msg):
 	theta, alpha, beta, gamma=getAngles(position, orientation, velocity, angularVelocity)
 
 	controlInput=control(position.x,position.y,gamma,theta-gamma)
-	
+
+	print(controlInput)
+
 	pubThrottle.publish(controlInput[0])
 	pubSteering.publish(controlInput[1])
 
@@ -149,25 +186,29 @@ def main():
 
 	pubYe = rospy.Publisher('/ackermann/Ye', Float32, queue_size=10)
 
-	rate = rospy.Rate(100) # 1000hz
+	rate = rospy.Rate(100) # 100hz
 
 	X=lambda t: 5*cos(t)-5
 	Y=lambda t: 5*sin(t)
 	tangent=lambda t: np.array([-5*sin(t), 5*cos(t)])
 
-	CC=CurvilinearCoordinates(X,Y,tangent)
+	rho=lambda t: (abs(sign(cos(t))**2*cos(t)*sin(t)**2 + sign(sin(t))**2*cos(t)**3)**2 + abs(sign(cos(t))**2*sin(t)**3 + sign(sin(t))**2*cos(t)**2*sin(t))**2)**(1/2)/(5*abs(sign(cos(t)))**2*abs(sign(sin(t)))**2*(abs(cos(t))**2 + abs(sin(t))**2)**2)
 
-	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-5
+	CC=CurvilinearCoordinates(X,Y,tangent,rho)
+
+	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-4.5
 	Y1=lambda t: 5*(1-0.1*cos(3*t))*sin(t)
 	tangent1=lambda t: np.array([5*(0.1*3*sin(3*t))*cos(t)-5*(1-0.1*cos(3*t))*sin(t), 5*(0.1*3*sin(3*t))*sin(t)+5*(0.1*cos(3*t))*cos(t)])
+	rho1= lambda t: (abs((cos(2*t) + 4*cos(4*t) - 5*cos(t))/(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2) - ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(sin(2*t)/2 + sin(4*t) - 5*sin(t)))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2 + abs((10*sin(t) + 36*cos(t)*sin(t) - 64*cos(t)**3*sin(t))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)) + ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3))/(4*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2)**(1/2)/(abs(8*cos(t)**4 - 9*cos(t)**2 - 5*cos(t) + 3/2)**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)
 
-	CC1=CurvilinearCoordinates(X1,Y1,tangent1)
+	CC1=CurvilinearCoordinates(X1,Y1,tangent1,rho1)
 
 	X2=lambda t: 0.1*(.05*t**2+0.15*t**3)
 	Y2=lambda t: t
 	tangent2=lambda t: np.array([0.1*(0.05*2*t+0.15*3*t**2), 1])
-
-	CC2=CurvilinearCoordinates(X2,Y2,tangent2)
+	rho2= lambda t: (400*(abs((9*t + 1)*(4*t**2 - 36*t**3*sign(t*(9*t + 2))**2 - 81*t**4*sign(t*(9*t + 2))**2 - 4*t**2*sign(t*(9*t + 2))**2 + 36*t**3 + 81*t**4 + 40000*sign(t*(9*t + 2))**2))**2 + 40000*abs(t*(9*t + 2))**2*abs(sign(t*(9*t + 2))*(9*t + 1))**2*abs(sign(t*(9*t + 2)))**4)**(1/2))/(abs(sign(t*(9*t + 2)))**2*(abs(t*(9*t + 2))**2 + 40000)**2)
+			
+	CC2=CurvilinearCoordinates(X2,Y2,tangent1,rho2)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
 	signal.signal(signal.SIGINT, exit_gracefully)
