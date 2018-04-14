@@ -111,7 +111,7 @@ def traj(x, y, v, theta, beta, cc):
 
 	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
 	ySigma=cos(thetat)*(y-yt) - sin(thetat)*(x-xt)
-	thetaSigma=theta+beta-thetat
+	thetaSigma=theta-thetat
 	
 	print(sqrt(v.x**2+v.y**2)*cos(beta+thetaSigma))
 	print(v.x*cos(thetaSigma) - v.y*sin(thetaSigma))
