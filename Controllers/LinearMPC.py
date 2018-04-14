@@ -19,7 +19,7 @@ from KalmanFilters.EKF import ExtendedKalmanFilter
 from CurvilinearCoordinates import *
 
 running=True
-elapsedtSigmaime=0
+elapsedTime=0
 deltaTime=10/1000.
 
 
@@ -81,23 +81,23 @@ def getAngles(position, orientation, velocity, angularVelocity):
 	angles=transforms3d.euler.quat2euler(np.array([orientation.w,orientation.x,orientation.y,orientation.z]))
 	rot=np.array(transforms3d.euler.euler2mat(angles[0],angles[1],angles[2]))
 
-	theta=np.arctan2(velocity.y,velocity.x)#Slip
+	psi=np.arctan2(velocity.y,velocity.x)#Slip
 
 	alpha=np.arctan2(rot[0,1], rot[0,2])
 	beta=np.arctan2(rot[0,0], rot[0,2])
-	gamma=np.arctan2(-rot[2,1], -rot[2,0])
+	theta=np.arctan2(-rot[2,1], -rot[2,0])
 
-	return theta, alpha, beta, gamma
+	return psi, alpha, beta, theta
 
-def control(x, y, theta, beta):
+def control(x, y, psi, beta):
 
 	global Q, R, P, controlInput, pubySigma
 
 	cc=CC
-	[phi, xSigma, ySigma, thetaSigma, ds]=traj(x, y, velocity, theta, beta, cc)
+	[phi, xSigma, ySigma, psiSigma, ds]=traj(x, y, velocity, psi, beta, cc)
 	pubySigma.publish(ySigma)
 	
-	x=cvxopt.matrix(np.array([[ySigma], [thetaSigma]]))
+	x=cvxopt.matrix(np.array([[ySigma], [psiSigma]]))
 
 	Qs=cvxopt.spdiag([Q if i<(N-1) else P for i in range(0,N)])
 	Rs=cvxopt.spdiag([R for i in range(0,N)])
@@ -126,7 +126,7 @@ def control(x, y, theta, beta):
 
 	return np.array(controlInput)
 
-def traj(x, y, v, theta, beta, cc):
+def traj(x, y, v, psi, beta, cc):
 	
 	CC.setCoordinates(x,y)
 	phi=CC.getCoordinates()
@@ -134,21 +134,22 @@ def traj(x, y, v, theta, beta, cc):
 	xt=CC.X(phi)
 	yt=CC.Y(phi)
 	tangent=CC.tangent(phi)
-	thetat=arctan2(tangent[1], tangent[0])
+	psit=arctan2(tangent[1], tangent[0])
 	normal=np.array([tangent[1],-tangent[0]])
 
 	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
-	ySigma=cos(thetat)*(y-yt) - sin(thetat)*(x-xt)
-	thetaSigma=theta-thetat
-	
-	dtSigma=sqrt(v.x**2+v.y**2)*cos(beta+thetaSigma)/(1-ySigma/CC.rho(phi))
+	ySigma=cos(psit)*(y-yt) - sin(psit)*(x-xt)
+	psiSigma=psi+beta-psit
 
-	return [phi, xSigma, ySigma, thetaSigma, dtSigma]		
+	dtSigma=sqrt(v.x**2+v.y**2)*cos(beta+psiSigma)/(1-ySigma/CC.rho(phi))
+
+	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
 def callbackOdom(msg):
 
-	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, controlInput
+	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, elapsedTime
 
+	elapsedTime+=deltaTime
 	Pose=msg.pose.pose
 	Twist=msg.twist.twist
 
@@ -158,24 +159,24 @@ def callbackOdom(msg):
 	velocity=Twist.linear
 	angularVelocity=Twist.angular	
 
-	theta, alpha, beta, gamma=getAngles(position, orientation, velocity, angularVelocity)
+	psi, alpha, beta, theta=getAngles(position, orientation, velocity, angularVelocity)
 
-	controlInput=control(position.x,position.y,gamma,theta-gamma)
+	controlInput=control(position.x,position.y,theta,psi-theta)
 
 	print(controlInput)
 
 	pubThrottle.publish(controlInput[0])
 	pubSteering.publish(controlInput[1])
 
-	#print("Theta"+str(theta))
+	#print("psi"+str(psi))
 	#print("Alpha"+str(alpha))
 	#print("Beta"+str(beta))
-	#print("Gamma"+str(gamma))
+	#print("theta"+str(theta))
 	#print()
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedtSigmaime, startTime, pubThrottle, pubSteering, pubySigma, CC, CC1, CC2
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubySigma, CC, CC1, CC2
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -185,8 +186,6 @@ def main():
 	pubSteering = rospy.Publisher('/ackermann/Steering', Float32, queue_size=10)
 
 	pubySigma = rospy.Publisher('/ackermann/ySigma', Float32, queue_size=10)
-
-	rate = rospy.Rate(100) # 100hz
 
 	X=lambda t: 5*cos(t)-5
 	Y=lambda t: 5*sin(t)
@@ -214,7 +213,6 @@ def main():
 	signal.signal(signal.SIGINT, exit_gracefully)
 
 	while(running):
-		elapsedtSigmaime+=deltaTime
-		rate.sleep()
+		pass
 if __name__=="__main__":
 	main()

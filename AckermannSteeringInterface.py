@@ -32,7 +32,7 @@ throttle_joint = ['nakedCar_motorLeft','nakedCar_motorRight']
 Lr=1.2888
 Lf=1.2884
 
-deltaTime = 1./100
+deltaTime = 10./1000.
 elapsedTime=0
 
 def h(x):
@@ -72,7 +72,7 @@ def exit_gracefully(signum, frame):
 	running = False
 	global clientID
 	# stop the simulation
-	vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
+	vrep.simxStopSimulation(clientID, vrep.simx_opmode_oneshot)
 
 	# Before closing the connection to V-REP,
 	# make sure that the last command sent out had time to arrive.
@@ -118,7 +118,7 @@ def startSim():
 
 	# start our simulation in lockstep with our code
 	vrep.simxSynchronous(clientID,True)
-	vrep.simxStartSimulation(clientID,vrep.simx_opmode_oneshot)
+	vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
 
 	joint_handles = [vrep.simxGetObjectHandle(clientID,
 	    name, vrep.simx_opmode_blocking)[1] for name in joint_names]
@@ -238,7 +238,7 @@ def initialisePose():
 	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, Pose
 
 	ret, xyz=vrep.simxGetObjectPosition(clientID, body_handle[1], -1, vrep.simx_opmode_blocking)
-	ret, angles=vrep.simxGetObjectOrientation(clientID, body_handle[1], -1, vrep.simx_opmode_streaming)
+	ret, angles=vrep.simxGetObjectOrientation(clientID, body_handle[1], -1, vrep.simx_opmode_blocking)
 
 	rot=np.array(transforms3d.euler.euler2mat(angles[0],angles[1],angles[2]))
 
