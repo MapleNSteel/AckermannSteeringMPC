@@ -19,7 +19,7 @@ from KalmanFilters.EKF import ExtendedKalmanFilter
 from CurvilinearCoordinates import *
 
 running=True
-elapsedTime=0
+elapsedtSigmaime=0
 deltaTime=10/1000.
 
 
@@ -30,16 +30,16 @@ L=3.3138
 
 controlInput=np.array([[0],[0]])
 
-Q=cvxopt.matrix(np.eye(2))*1000#Running Cost - x
-R=cvxopt.matrix(np.eye(2))*1#Running Cost - u
-P=cvxopt.matrix(np.eye(2))*1000#Terminal Cost -x
+Q=cvxopt.matrix(np.eySigma(2))*1000#Running Cost - x
+R=cvxopt.matrix(np.eySigma(2))*1#Running Cost - u
+P=cvxopt.matrix(np.eySigma(2))*1000#Terminal Cost -x
 
 N=80 #Window length
 def jacobianF(x,u):
 
 	beta=arctan((Lr/(Lf+Lr))*tan(u[1]))
 
-	return np.array(np.eye(2))+np.transpose(np.array([[0, 0],[0, u[0]*cos(x[1] + beta)]]))*deltaTime
+	return np.array(np.eySigma(2))+np.transpose(np.array([[0, 0],[0, u[0]*cos(x[1] + beta)]]))*deltaTime
 
 def jacobianH(x,u):
 
@@ -91,19 +91,19 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, theta, beta):
 
-	global Q, R, P, controlInput, pubYe
+	global Q, R, P, controlInput, pubySigma
 
 	cc=CC
-	[phi, xe, ye, thetae, ds]=traj(x, y, velocity, theta, cc)
-	pubYe.publish(ye)
+	[phi, xSigma, ySigma, thetaSigma, ds]=traj(x, y, velocity, theta, beta, cc)
+	pubySigma.publish(ySigma)
 	
-	x=cvxopt.matrix(np.array([[ye], [thetae]]))
+	x=cvxopt.matrix(np.array([[ySigma], [thetaSigma]]))
 
 	Qs=cvxopt.spdiag([Q if i<(N-1) else P for i in range(0,N)])
 	Rs=cvxopt.spdiag([R for i in range(0,N)])
 
 	B=cvxopt.matrix(jacobianH(x,cvxopt.matrix(controlInput)))
-	C=cvxopt.matrix(np.eye(2))
+	C=cvxopt.matrix(np.eySigma(2))
 	A=cvxopt.matrix(jacobianF(x, cvxopt.matrix(controlInput)))
 
 	G=cvxopt.sparse([C*(A**i) for i in range(0,N)])
@@ -126,24 +126,24 @@ def control(x, y, theta, beta):
 
 	return np.array(controlInput)
 
-def traj(x, y, v, theta, cc):
+def traj(x, y, v, theta, beta, cc):
 	
 	CC.setCoordinates(x,y)
 	phi=CC.getCoordinates()
 
-	xt=CC.X(phi+0.01)
-	yt=CC.Y(phi+0.01)
+	xt=CC.X(phi)
+	yt=CC.Y(phi)
 	tangent=CC.tangent(phi)
 	thetat=arctan2(tangent[1], tangent[0])
-	print(arctan2(tangent[1], tangent[0]))
 	normal=np.array([tangent[1],-tangent[0]])
 
-	xe=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
-	ye=cos(thetat)*(y-yt) - sin(thetat)*(x-xt)
-	thetae=theta-thetat
-	dt=(CC.rho(phi)/(CC.rho(phi)-ye))*(velocity.x*cos(thetae)-velocity.y*sin(thetae))
+	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
+	ySigma=cos(thetat)*(y-yt) - sin(thetat)*(x-xt)
+	thetaSigma=theta-thetat
+	
+	dtSigma=sqrt(v.x**2+v.y**2)*cos(beta+thetaSigma)/(1-ySigma/CC.rho(phi))
 
-	return [phi, xe, ye, thetae, dt]	
+	return [phi, xSigma, ySigma, thetaSigma, dtSigma]		
 
 def callbackOdom(msg):
 
@@ -175,7 +175,7 @@ def callbackOdom(msg):
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubYe, CC, CC1, CC2
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedtSigmaime, startTime, pubThrottle, pubSteering, pubySigma, CC, CC1, CC2
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -184,7 +184,7 @@ def main():
 	pubThrottle = rospy.Publisher('/ackermann/Throttle', Float32, queue_size=10)
 	pubSteering = rospy.Publisher('/ackermann/Steering', Float32, queue_size=10)
 
-	pubYe = rospy.Publisher('/ackermann/Ye', Float32, queue_size=10)
+	pubySigma = rospy.Publisher('/ackermann/ySigma', Float32, queue_size=10)
 
 	rate = rospy.Rate(100) # 100hz
 
@@ -214,7 +214,7 @@ def main():
 	signal.signal(signal.SIGINT, exit_gracefully)
 
 	while(running):
-		elapsedTime+=deltaTime
+		elapsedtSigmaime+=deltaTime
 		rate.sleep()
 if __name__=="__main__":
 	main()

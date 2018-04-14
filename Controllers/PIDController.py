@@ -17,7 +17,7 @@ from KalmanFilters.EKF import ExtendedKalmanFilter
 from CurvilinearCoordinates import *
 
 running=True
-elapsedTime=0
+elapsedtSigmaime=0
 deltaTime=10/1000.
 
 
@@ -30,8 +30,8 @@ X=[]
 Y=[]
 
 accum=0
-yePrev=0
-xePrev=0
+ySigmaPrev=0
+xSigmaPrev=0
 
 Kp, Ki, Kd=10.0, 0.01, 20.0
 
@@ -72,21 +72,21 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, theta, beta):
 
-		global startTime, velocity, accum, yePrev, Kp, Ki, Kd, pubYe, CC, CC1, CC2, xePrev, T, elapsedTime
+		global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, T, elapsedtSigmaime
 
-		[phi, xe, ye, thetae, dt]=traj(x, y, velocity, theta, beta, CC)
-		accum=accum+ye
+		[phi, xSigma, ySigma, thetaSigma, dtSigma]=traj(x, y, velocity, theta, beta, CC)
+		accum=accum+ySigma
 	
 		desiredSpeed=2
-		desiredSteeringAngle=-Kp*ye+-Ki*accum+-Kd*(ye-yePrev)
-		yePrev=ye
+		desiredSteeringAngle=-Kp*ySigma+-Ki*accum+-Kd*(ySigma-ySigmaPrev)
+		ySigmaPrev=ySigma
 		
-		if(not dt==0):
-			T=T+((xe-xePrev)/dt)
-		xePrev=xe
+		if(not dtSigma==0):
+			T=T+((xSigma-xSigmaPrev)/dtSigma)
+		xSigmaPrev=xSigma
 
 		#print(desiredSpeed,desiredSteeringAngle)
-		print("phi:"+str(phi)+"    xe:"+str(xe)+"    ye:"+str(ye)+"    thetae:"+str(thetae)+"    dt:"+str(dt)+"    T:"+str(T))
+		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    thetaSigma:"+str(thetaSigma)+"    dtSigma:"+str(dtSigma)+"    T:"+str(T))
 		
 		if(desiredSteeringAngle<-np.pi/3):
 			desiredSteeringAngle=-np.pi/3
@@ -94,7 +94,7 @@ def control(x, y, theta, beta):
 			desiredSteeringAngle=np.pi/3
 
 
-		pubYe.publish(T)
+		pubySigma.publish(T)
 
 		return [desiredSpeed,desiredSteeringAngle]
 
@@ -109,13 +109,16 @@ def traj(x, y, v, theta, beta, cc):
 	thetat=arctan2(tangent[1], tangent[0])
 	normal=np.array([tangent[1],-tangent[0]])
 
-	xe=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
-	ye=cos(thetat)*(y-yt) - sin(thetat)*(x-xt)
-	thetae=theta-thetat
+	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
+	ySigma=cos(thetat)*(y-yt) - sin(thetat)*(x-xt)
+	thetaSigma=theta+beta-thetat
 	
-	dt=sqrt(v.x**2+v.y**2)*cos(beta+thetae)/(1-ye/CC.rho(phi))
+	print(sqrt(v.x**2+v.y**2)*cos(beta+thetaSigma))
+	print(v.x*cos(thetaSigma) - v.y*sin(thetaSigma))
 
-	return [phi, xe, ye, thetae, dt]	
+	dtSigma=sqrt(v.x**2+v.y**2)*cos(beta+thetaSigma)/(1-ySigma/CC.rho(phi))
+
+	return [phi, xSigma, ySigma, thetaSigma, dtSigma]	
 
 def callbackOdom(msg):
 
@@ -145,7 +148,7 @@ def callbackOdom(msg):
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubYe, CC, CC1, CC2
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedtSigmaime, startTime, pubThrottle, pubSteering, pubySigma, CC, CC1, CC2
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -154,7 +157,7 @@ def main():
 	pubThrottle = rospy.Publisher('/ackermann/Throttle', Float32, queue_size=10)
 	pubSteering = rospy.Publisher('/ackermann/Steering', Float32, queue_size=10)
 
-	pubYe = rospy.Publisher('/ackermann/Ye', Float32, queue_size=10)
+	pubySigma = rospy.Publisher('/ackermann/ySigma', Float32, queue_size=10)
 
 	rate = rospy.Rate(100) # 1000hz
 
@@ -184,7 +187,7 @@ def main():
 	signal.signal(signal.SIGINT, exit_gracefully)
 
 	while(running):
-		elapsedTime+=deltaTime
+		elapsedtSigmaime+=deltaTime
 		rate.sleep()
 if __name__=="__main__":
 	main()
