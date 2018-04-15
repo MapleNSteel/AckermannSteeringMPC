@@ -33,7 +33,7 @@ accum=0
 ySigmaPrev=0
 xSigmaPrev=0
 
-Kp, Ki, Kd=2.0, 0.005, 0.001
+Kp, Ki, Kd=2.0, 0.005, 0.0001
 
 T=0
 
@@ -68,9 +68,9 @@ def getAngles(position, orientation, velocity, angularVelocity):
 	beta=np.arctan2(rot[0,0], rot[0,2])
 	theta=np.arctan2(-rot[2,1], -rot[2,0])
 
-	return psi, alpha, beta, theta
+	return psi, alpha, beta, theta, angularVelocity.z
 
-def control(x, y, psi, beta):
+def control(x, y, psi, beta, psid):
 
 		global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, T, elapsedTime
 
@@ -81,14 +81,9 @@ def control(x, y, psi, beta):
 		desiredSteeringAngle=-Kp*ySigma+-Ki*accum+-Kd*(ySigma-ySigmaPrev)
 		ySigmaPrev=ySigma
 		
-		if(not dtSigma==0):
-			T=T+((xSigma-xSigmaPrev)/dtSigma)
-		xSigmaPrev=xSigma
+		T=elapsedTime
 
-		#print(desiredSpeed,desiredSteeringAngle)
-		#print(psi-psiSigma)
-		#print(psi)
-		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma)+"    dtSigma:"+str(dtSigma)+"    T:"+str(T))
+		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma)+"    dtSigma:"+str(dtSigma)+"    T:"+str(T)+"    psid:"+str(psid))
 		
 		if(desiredSteeringAngle<-np.pi/3):
 			desiredSteeringAngle=-np.pi/3
@@ -113,9 +108,9 @@ def traj(x, y, v, psi, beta, cc):
 
 	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
 	ySigma=cos(psit)*(y-yt) - sin(psit)*(x-xt)
-	psiSigma=psi+beta-psit
+	psiSigma=psi-psit
 
-	dtSigma=sqrt(v.x**2+v.y**2)*cos(beta+psiSigma)/(1-ySigma/CC.rho(phi))
+	dtSigma=sqrt(v.x**2+v.y**2)*cos(psiSigma)/(1-ySigma/CC.rho(phi))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]	
 
@@ -134,9 +129,9 @@ def callbackOdom(msg):
 	velocity=Twist.linear
 	angularVelocity=Twist.angular	
 
-	psi, alpha, beta, theta=getAngles(position, orientation, velocity, angularVelocity)
+	psi, alpha, beta, theta, psid=getAngles(position, orientation, velocity, angularVelocity)
 
-	controlInput=control(position.x,position.y,theta,psi-theta)
+	controlInput=control(position.x,position.y,psi,psi-theta,psid)
 	
 	pubThrottle.publish(controlInput[0])
 	pubSteering.publish(controlInput[1])

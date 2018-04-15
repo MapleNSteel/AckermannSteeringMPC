@@ -272,6 +272,7 @@ def main():
 			print ('Connected to remote API server')
 	except:
 		exit(0)
+
 	while(running):
 		setVehicleState(desiredSteeringAngle, desiredSpeed)
 		getVehicleState()		

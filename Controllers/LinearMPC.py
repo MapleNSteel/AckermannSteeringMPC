@@ -11,6 +11,7 @@ import time
 import sys
 import rospy
 import cvxopt
+cvxopt.solvers.options['show_progress'] = False
 from std_msgs.msg import String, Float32, Header
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
@@ -20,7 +21,10 @@ from CurvilinearCoordinates import *
 
 running=True
 elapsedTime=0
-deltaTime=10/1000.
+deltaTime=10./1000.
+deltaSigma=0
+
+xSigmaPrev=0
 
 
 Lr=1.2888
@@ -28,33 +32,57 @@ Lf=1.2884
 
 L=3.3138
 
-controlInput=np.array([[0],[0]])
+controlInput=cvxopt.matrix(np.array([[0],[0]]))
 
-Q=cvxopt.matrix(np.eySigma(2))*1000#Running Cost - x
-R=cvxopt.matrix(np.eySigma(2))*1#Running Cost - u
-P=cvxopt.matrix(np.eySigma(2))*1000#Terminal Cost -x
+stateLength=2
+controlLength=2
 
-N=80 #Window length
-def jacobianF(x,u):
+Q=cvxopt.matrix(np.eye(stateLength))*1e1#Running Cost - x
+R=cvxopt.matrix(np.eye(controlLength))*1e-5#Running Cost - u
+P=cvxopt.matrix(np.eye(stateLength))*1e1#Terminal Cost -x
 
-	beta=arctan((Lr/(Lf+Lr))*tan(u[1]))
-
-	return np.array(np.eySigma(2))+np.transpose(np.array([[0, 0],[0, u[0]*cos(x[1] + beta)]]))*deltaTime
-
-def jacobianH(x,u):
-
-	beta=arctan((Lr/(Lf+Lr))*tan(u[1]))
-
-	return np.transpose(np.array(
-[
-[deltaTime*sin(x[1] + arctan((Lf*tan(u[1]))/(Lf + Lr))),
- (Lf*deltaTime*tan(u[1]))/(Lr*(Lf + Lr)*((Lf**2*tan(u[1])**2)/(Lf + Lr)**2 + 1)**(1/2))],
-
-[deltaTime*sin(x[1] + arctan((Lf*tan(u[1]))/(Lf + Lr))),
- (Lf*deltaTime*tan(u[1]))/(Lr*(Lf + Lr)*((Lf**2*tan(u[1])**2)/(Lf + Lr)**2 + 1)**(1/2))]
-]))
-
+N=2 #Window length
 T=0
+
+def forwardDifference(N, l):
+	D=np.eye(N*l)
+	
+	for i in range(l, N):
+		D[i, i-l]=-1
+
+	return D
+
+def jacobianF(x,u,rho):
+
+	global deltaSigma
+
+	ye=x[0]
+	psie=x[1]
+
+	v=u[0]
+	d=u[1]
+
+	if(v==0):
+		v=1e-3
+
+	K=tan(d)/L - 1/rho
+
+	return np.array(np.eye(stateLength))+np.array([[rho/deltaTime - tan(psie)*v, (rho-ye)*v/(1+tan(psie)**2)],[-K*v/cos(psie), rho/deltaTime + sin(psie)*K*(rho-ye)*v/(cos(psie)**2)]])*deltaTime/rho
+
+def jacobianH(x,u,rho):
+
+	global deltaSigma
+	
+	ye=x[0]
+	psie=x[1]
+
+	v=u[0]
+	d=u[1]
+		
+	if(v==0):
+		v=1e-3
+
+	return np.array([[0, 0], [(rho-ye)*v/(rho*cos(psie)), 0]])
 
 def exit_gracefully(signum, frame):
 
@@ -91,48 +119,49 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global Q, R, P, controlInput, pubySigma
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, T, elapsedTime, controlInput, deltaSigma
 
 	cc=CC
 	[phi, xSigma, ySigma, psiSigma, ds]=traj(x, y, velocity, psi, beta, cc)
 	pubySigma.publish(ySigma)
 	
-	x=cvxopt.matrix(np.array([[ySigma], [psiSigma]]))
+	x=cvxopt.matrix(np.array([[ySigma[0]], [psiSigma[0]]]))
 
 	Qs=cvxopt.spdiag([Q if i<(N-1) else P for i in range(0,N)])
 	Rs=cvxopt.spdiag([R for i in range(0,N)])
 
-	B=cvxopt.matrix(jacobianH(x,cvxopt.matrix(controlInput)))
-	C=cvxopt.matrix(np.eySigma(2))
-	A=cvxopt.matrix(jacobianF(x, cvxopt.matrix(controlInput)))
+	B=cvxopt.matrix(jacobianH(x,cvxopt.matrix(controlInput), cc.rho(phi)[0]))
+	C=cvxopt.matrix(np.eye(stateLength))
+	A=cvxopt.matrix(jacobianF(x, cvxopt.matrix(controlInput), cc.rho(phi)[0]))
 
 	G=cvxopt.sparse([C*(A**i) for i in range(0,N)])
 	H=cvxopt.sparse([cvxopt.sparse([[C*(A**j)*B if j<=i else cvxopt.matrix(np.zeros(np.shape(B)))] for j in range(0,N)]) for i in range(0,N)])
+	F=cvxopt.sparse([C*(A**i)*B for i in range(0,N)])
 
 	#Final Matrice
-	Y=Rs+H.trans()*Qs.trans()*H
-	PHI=cvxopt.sparse([G.trans()*Qs*G])
-	F=2*G.trans()*Qs*H
+	D=cvxopt.matrix(forwardDifference(N, controlLength))
+	Y=Rs*D.trans()*D+H.trans()*Qs.trans()*H
 
 	P1=2*Y
-	q=(x.trans()*F).trans()
+	q=H.trans()*(G*x+F*controlInput)
 
 	G1=cvxopt.spdiag([cvxopt.matrix([[0,1], [0,-1]]).trans() for i in range(0,N)])
 	c1=cvxopt.matrix(np.array([[pi/3],[pi/3]]))
 	h1=cvxopt.matrix(cvxopt.sparse([c1 for i in range(0,N)]), (N*2,1))
+
 	sol=cvxopt.solvers.qp(P1,q,G1,h1)
 
-	controlInput=sol['x'][0:2]
+	controlInput=controlInput+sol['x'][0:2]
 
 	return np.array(controlInput)
 
-def traj(x, y, v, psi, beta, cc):
+def traj(x, y, v, psi, beta, CC):
 	
 	CC.setCoordinates(x,y)
 	phi=CC.getCoordinates()
 
-	xt=CC.X(phi)
-	yt=CC.Y(phi)
+	xt=CC.X(phi+0.1)
+	yt=CC.Y(phi+0.1)
 	tangent=CC.tangent(phi)
 	psit=arctan2(tangent[1], tangent[0])
 	normal=np.array([tangent[1],-tangent[0]])
@@ -161,7 +190,7 @@ def callbackOdom(msg):
 
 	psi, alpha, beta, theta=getAngles(position, orientation, velocity, angularVelocity)
 
-	controlInput=control(position.x,position.y,theta,psi-theta)
+	controlInput=control(position.x,position.y,psi,psi-theta)
 
 	print(controlInput)
 
