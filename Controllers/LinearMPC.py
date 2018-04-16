@@ -1,4 +1,4 @@
-#Doesnae Work Raeght
+#Doesnae work rae
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
@@ -37,9 +37,9 @@ controlInput=cvxopt.matrix(np.array([[0],[0]]))
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.eye(stateLength))*1e1#Running Cost - x
-R=cvxopt.matrix(np.eye(controlLength))*1e-5#Running Cost - u
-P=cvxopt.matrix(np.eye(stateLength))*1e1#Terminal Cost -x
+Q=cvxopt.matrix(np.eye(stateLength))*1#Running Cost - x
+R=cvxopt.matrix(np.eye(controlLength))*1#Running Cost - u
+P=cvxopt.matrix(np.eye(stateLength))*1#Terminal Cost -x
 
 N=2 #Window length
 T=0
@@ -47,7 +47,7 @@ T=0
 def forwardDifference(N, l):
 	D=np.eye(N*l)
 	
-	for i in range(l, N):
+	for i in range(l, N*l):
 		D[i, i-l]=-1
 
 	return D
@@ -62,12 +62,9 @@ def jacobianF(x,u,rho):
 	v=u[0]
 	d=u[1]
 
-	if(v==0):
-		v=1e-3
-
 	K=tan(d)/L - 1/rho
 
-	return np.array(np.eye(stateLength))+np.array([[rho/deltaTime - tan(psie)*v, (rho-ye)*v/(1+tan(psie)**2)],[-K*v/cos(psie), rho/deltaTime + sin(psie)*K*(rho-ye)*v/(cos(psie)**2)]])*deltaTime/rho
+	return np.array([[-tan(psie)/rho, ((tan(psie)**2 + 1)*(rho - ye))/rho],[-tan(d)/(rho*cos(psie)*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (tan(d)*sin(psie)*(rho - ye))/(rho*cos(psie)**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*deltaSigma
 
 def jacobianH(x,u,rho):
 
@@ -78,11 +75,8 @@ def jacobianH(x,u,rho):
 
 	v=u[0]
 	d=u[1]
-		
-	if(v==0):
-		v=1e-3
 
-	return np.array([[0, 0], [(rho-ye)*v/(rho*cos(psie)), 0]])
+	return np.array([[0, 0], [0, ((tan(d)**2 + 1)*(rho - ye))/(rho*cos(psie)*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])
 
 def exit_gracefully(signum, frame):
 
@@ -130,9 +124,9 @@ def control(x, y, psi, beta):
 	Qs=cvxopt.spdiag([Q if i<(N-1) else P for i in range(0,N)])
 	Rs=cvxopt.spdiag([R for i in range(0,N)])
 
-	B=cvxopt.matrix(jacobianH(x,cvxopt.matrix(controlInput), cc.rho(phi)[0]))
+	B=cvxopt.matrix(jacobianH(x,cvxopt.matrix(controlInput), cc.rho(phi)))
 	C=cvxopt.matrix(np.eye(stateLength))
-	A=cvxopt.matrix(jacobianF(x, cvxopt.matrix(controlInput), cc.rho(phi)[0]))
+	A=cvxopt.matrix(jacobianF(x, cvxopt.matrix(controlInput), cc.rho(phi)))
 
 	G=cvxopt.sparse([C*(A**i) for i in range(0,N)])
 	H=cvxopt.sparse([cvxopt.sparse([[C*(A**j)*B if j<=i else cvxopt.matrix(np.zeros(np.shape(B)))] for j in range(0,N)]) for i in range(0,N)])
@@ -140,11 +134,10 @@ def control(x, y, psi, beta):
 
 	#Final Matrice
 	D=cvxopt.matrix(forwardDifference(N, controlLength))
-	Y=Rs*D.trans()*D+H.trans()*Qs.trans()*H
+	Y=Rs+H.trans()*Qs.trans()*H
 
 	P1=2*Y
-	q=H.trans()*(G*x+F*controlInput)
-
+	q=H.trans()*Qs*G*x
 	G1=cvxopt.spdiag([cvxopt.matrix([[0,1], [0,-1]]).trans() for i in range(0,N)])
 	c1=cvxopt.matrix(np.array([[pi/3],[pi/3]]))
 	h1=cvxopt.matrix(cvxopt.sparse([c1 for i in range(0,N)]), (N*2,1))
@@ -160,8 +153,8 @@ def traj(x, y, v, psi, beta, CC):
 	CC.setCoordinates(x,y)
 	phi=CC.getCoordinates()
 
-	xt=CC.X(phi+0.1)
-	yt=CC.Y(phi+0.1)
+	xt=CC.X(phi)
+	yt=CC.Y(phi)
 	tangent=CC.tangent(phi)
 	psit=arctan2(tangent[1], tangent[0])
 	normal=np.array([tangent[1],-tangent[0]])
@@ -194,7 +187,7 @@ def callbackOdom(msg):
 
 	print(controlInput)
 
-	pubThrottle.publish(controlInput[0])
+	pubThrottle.publish(1)
 	pubSteering.publish(controlInput[1])
 
 	#print("psi"+str(psi))
@@ -220,21 +213,21 @@ def main():
 	Y=lambda t: 5*sin(t)
 	tangent=lambda t: np.array([-5*sin(t), 5*cos(t)])
 
-	rho=lambda t: (abs(sign(cos(t))**2*cos(t)*sin(t)**2 + sign(sin(t))**2*cos(t)**3)**2 + abs(sign(cos(t))**2*sin(t)**3 + sign(sin(t))**2*cos(t)**2*sin(t))**2)**(1/2)/(5*abs(sign(cos(t)))**2*abs(sign(sin(t)))**2*(abs(cos(t))**2 + abs(sin(t))**2)**2)
+	rho=lambda t: 5
 
 	CC=CurvilinearCoordinates(X,Y,tangent,rho)
 
 	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-4.5
 	Y1=lambda t: 5*(1-0.1*cos(3*t))*sin(t)
 	tangent1=lambda t: np.array([5*(0.1*3*sin(3*t))*cos(t)-5*(1-0.1*cos(3*t))*sin(t), 5*(0.1*3*sin(3*t))*sin(t)+5*(0.1*cos(3*t))*cos(t)])
-	rho1= lambda t: (abs((cos(2*t) + 4*cos(4*t) - 5*cos(t))/(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2) - ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(sin(2*t)/2 + sin(4*t) - 5*sin(t)))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2 + abs((10*sin(t) + 36*cos(t)*sin(t) - 64*cos(t)**3*sin(t))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)) + ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3))/(4*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2)**(1/2)/(abs(8*cos(t)**4 - 9*cos(t)**2 - 5*cos(t) + 3/2)**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)
+	rho1= lambda t: 1/((abs((cos(2*t) + 4*cos(4*t) - 5*cos(t))/(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2) - ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(sin(2*t)/2 + sin(4*t) - 5*sin(t)))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2 + abs((10*sin(t) + 36*cos(t)*sin(t) - 64*cos(t)**3*sin(t))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)) + ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3))/(4*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2)**(1/2)/(abs(8*cos(t)**4 - 9*cos(t)**2 - 5*cos(t) + 3/2)**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2))
 
 	CC1=CurvilinearCoordinates(X1,Y1,tangent1,rho1)
 
 	X2=lambda t: 0.1*(.05*t**2+0.15*t**3)
 	Y2=lambda t: t
 	tangent2=lambda t: np.array([0.1*(0.05*2*t+0.15*3*t**2), 1])
-	rho2= lambda t: (400*(abs((9*t + 1)*(4*t**2 - 36*t**3*sign(t*(9*t + 2))**2 - 81*t**4*sign(t*(9*t + 2))**2 - 4*t**2*sign(t*(9*t + 2))**2 + 36*t**3 + 81*t**4 + 40000*sign(t*(9*t + 2))**2))**2 + 40000*abs(t*(9*t + 2))**2*abs(sign(t*(9*t + 2))*(9*t + 1))**2*abs(sign(t*(9*t + 2)))**4)**(1/2))/(abs(sign(t*(9*t + 2)))**2*(abs(t*(9*t + 2))**2 + 40000)**2)
+	rho2= lambda t: 1/((400*(abs((9*t + 1)*(4*t**2 - 36*t**3*sign(t*(9*t + 2))**2 - 81*t**4*sign(t*(9*t + 2))**2 - 4*t**2*sign(t*(9*t + 2))**2 + 36*t**3 + 81*t**4 + 40000*sign(t*(9*t + 2))**2))**2 + 40000*abs(t*(9*t + 2))**2*abs(sign(t*(9*t + 2))*(9*t + 1))**2*abs(sign(t*(9*t + 2)))**4)**(1/2))/(abs(sign(t*(9*t + 2)))**2*(abs(t*(9*t + 2))**2 + 40000)**2))
 			
 	CC2=CurvilinearCoordinates(X2,Y2,tangent1,rho2)
 

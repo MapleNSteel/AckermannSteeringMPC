@@ -1,4 +1,3 @@
-#Can't handle lower speeds
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import pi
@@ -74,10 +73,10 @@ def control(x, y, psi, beta, psid):
 
 		global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, T, elapsedTime
 
-		[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, CC)
+		[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, CC1)
 		accum=accum+ySigma
 	
-		desiredSpeed=2
+		desiredSpeed=1
 		desiredSteeringAngle=-Kp*ySigma+-Ki*accum+-Kd*(ySigma-ySigmaPrev)
 		ySigmaPrev=ySigma
 		
@@ -97,20 +96,20 @@ def control(x, y, psi, beta, psid):
 
 def traj(x, y, v, psi, beta, cc):
 	
-	CC.setCoordinates(x,y)
-	phi=CC.getCoordinates()
+	cc.setCoordinates(x,y)
+	phi=cc.getCoordinates()
 
-	xt=CC.X(phi)
-	yt=CC.Y(phi)
-	tangent=CC.tangent(phi)
+	xt=cc.X(phi)
+	yt=cc.Y(phi)
+	tangent=cc.tangent(phi)
 	psit=arctan2(tangent[1], tangent[0])
 	normal=np.array([tangent[1],-tangent[0]])
 
-	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
+	xSigma=scipy.integrate.quad(lambda x: np.sqrt(cc.tangent(x)[0]**2+cc.tangent(x)[1]**2), 0, phi)[0]
 	ySigma=cos(psit)*(y-yt) - sin(psit)*(x-xt)
 	psiSigma=psi-psit
 
-	dtSigma=sqrt(v.x**2+v.y**2)*cos(psiSigma)/(1-ySigma/CC.rho(phi))
+	dtSigma=sqrt(v.x**2+v.y**2)*cos(psiSigma)/(1-ySigma/cc.rho(phi))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]	
 

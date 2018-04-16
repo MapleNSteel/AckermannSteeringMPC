@@ -255,7 +255,6 @@ def main():
 	rospy.Subscriber("/ackermann/Throttle", Float32, callbackThrottle)
 	rospy.Subscriber("/ackermann/Steering", Float32, callbackSteering)	
 
-	rate = rospy.Rate(100) # 1000hz
 	pubOdom = rospy.Publisher('/ackermann/Odom', Odometry, queue_size=10)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
@@ -279,6 +278,5 @@ def main():
 
 		elapsedTime+=deltaTime
 		vrep.simxSynchronousTrigger(clientID)
-		rate.sleep()
 if __name__=="__main__":
 	main()
