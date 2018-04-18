@@ -65,15 +65,15 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 	alpha=np.arctan2(rot[0,1], rot[0,2])
 	beta=np.arctan2(rot[0,0], rot[0,2])
-	theta=np.arctan2(-rot[2,1], -rot[2,0])
+	psi=np.arctan2(-rot[2,1], -rot[2,0])
 
-	return psi, alpha, beta, theta, angularVelocity.z
+	return psi, alpha, beta, psi, angularVelocity.z
 
-def control(x, y, psi, beta, psid):
+def control(x, y, psi, psid, beta):
 
 		global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, T, elapsedTime
 
-		[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, CC1)
+		[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, CC)
 		accum=accum+ySigma
 	
 		desiredSpeed=1
@@ -109,7 +109,7 @@ def traj(x, y, v, psi, beta, cc):
 	ySigma=cos(psit)*(y-yt) - sin(psit)*(x-xt)
 	psiSigma=psi-psit
 
-	dtSigma=sqrt(v.x**2+v.y**2)*cos(psiSigma)/(1-ySigma/cc.rho(phi))
+	dtSigma=sqrt(v.x*cos(psiSigma)-v.y*sin(psiSigma))/(1-ySigma/cc.rho(phi))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]	
 
@@ -128,9 +128,9 @@ def callbackOdom(msg):
 	velocity=Twist.linear
 	angularVelocity=Twist.angular	
 
-	psi, alpha, beta, theta, psid=getAngles(position, orientation, velocity, angularVelocity)
+	theta, alpha, beta, psi, psid=getAngles(position, orientation, velocity, angularVelocity)
 
-	controlInput=control(position.x,position.y,psi,psi-theta,psid)
+	controlInput=control(position.x,position.y,psi,psid,theta-psi)
 	
 	pubThrottle.publish(controlInput[0])
 	pubSteering.publish(controlInput[1])
@@ -138,7 +138,7 @@ def callbackOdom(msg):
 	#print("psi"+str(psi))
 	#print("Alpha"+str(alpha))
 	#print("Beta"+str(beta))
-	#print("theta"+str(theta))
+	#print("psi"+str(psi))
 	#print()
 
 def main():

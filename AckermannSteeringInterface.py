@@ -130,8 +130,8 @@ def startSim():
 	    body_name, vrep.simx_opmode_blocking)
 
 def setVehicleState(desiredSteeringAngle, desiredSpeed):
-	
-	global Pose
+
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle
 	
 	if(desiredSteeringAngle!=0):
 		steeringAngleLeft=np.arctan(l/(-d+l/np.tan(desiredSteeringAngle)))

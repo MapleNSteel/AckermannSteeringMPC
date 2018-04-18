@@ -32,16 +32,16 @@ Lf=1.2884
 
 L=3.3138
 
-controlInput=cvxopt.matrix(np.array([[0],[0]]))
+controlInput=cvxopt.matrix(np.array([[0.5],[0]]))
 
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.eye(stateLength))*1#Running Cost - x
+Q=cvxopt.matrix(np.eye(stateLength))*100#Running Cost - x
 R=cvxopt.matrix(np.eye(controlLength))*1#Running Cost - u
-P=cvxopt.matrix(np.eye(stateLength))*1#Terminal Cost -x
+P=cvxopt.matrix(np.eye(stateLength))*1000#Terminal Cost -x
 
-N=2 #Window length
+N=10 #Window length
 T=0
 
 def forwardDifference(N, l):
@@ -52,31 +52,23 @@ def forwardDifference(N, l):
 
 	return D
 
-def jacobianF(x,u,rho):
+def jacobianF(u,rho,beta,psi):
 
 	global deltaSigma
-
-	ye=x[0]
-	psie=x[1]
 
 	v=u[0]
 	d=u[1]
 
-	K=tan(d)/L - 1/rho
+	return np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), 2/(cos(2*psi + 2*arctan((Lr*sin(d))/(cos(d)*(Lf + Lr)))) + 1)],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*deltaSigma
 
-	return np.array([[-tan(psie)/rho, ((tan(psie)**2 + 1)*(rho - ye))/rho],[-tan(d)/(rho*cos(psie)*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (tan(d)*sin(psie)*(rho - ye))/(rho*cos(psie)**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*deltaSigma
-
-def jacobianH(x,u,rho):
+def jacobianH(u,rho,beta,psi):
 
 	global deltaSigma
-	
-	ye=x[0]
-	psie=x[1]
 
 	v=u[0]
 	d=u[1]
 
-	return np.array([[0, 0], [0, ((tan(d)**2 + 1)*(rho - ye))/(rho*cos(psie)*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])
+	return np.array([[0, (Lr*(tan(d)**2 + 1)*(Lf + Lr))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])
 
 def exit_gracefully(signum, frame):
 
@@ -117,6 +109,8 @@ def control(x, y, psi, beta):
 
 	cc=CC
 	[phi, xSigma, ySigma, psiSigma, ds]=traj(x, y, velocity, psi, beta, cc)
+	deltaSigma=xSigma-xSigmaPrev
+	xSigmaPrev=xSigma
 	pubySigma.publish(ySigma)
 	
 	x=cvxopt.matrix(np.array([[ySigma[0]], [psiSigma[0]]]))
@@ -124,9 +118,9 @@ def control(x, y, psi, beta):
 	Qs=cvxopt.spdiag([Q if i<(N-1) else P for i in range(0,N)])
 	Rs=cvxopt.spdiag([R for i in range(0,N)])
 
-	B=cvxopt.matrix(jacobianH(x,cvxopt.matrix(controlInput), cc.rho(phi)))
+	B=cvxopt.matrix(jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), beta, psi))
 	C=cvxopt.matrix(np.eye(stateLength))
-	A=cvxopt.matrix(jacobianF(x, cvxopt.matrix(controlInput), cc.rho(phi)))
+	A=cvxopt.matrix(jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), beta, psi))
 
 	G=cvxopt.sparse([C*(A**i) for i in range(0,N)])
 	H=cvxopt.sparse([cvxopt.sparse([[C*(A**j)*B if j<=i else cvxopt.matrix(np.zeros(np.shape(B)))] for j in range(0,N)]) for i in range(0,N)])
@@ -138,11 +132,11 @@ def control(x, y, psi, beta):
 
 	P1=2*Y
 	q=H.trans()*Qs*G*x
-	G1=cvxopt.spdiag([cvxopt.matrix([[0,1], [0,-1]]).trans() for i in range(0,N)])
+	G1=cvxopt.sparse([cvxopt.matrix([[0,1], [0,-1]]).trans() for i in range(0,N)])
 	c1=cvxopt.matrix(np.array([[pi/3],[pi/3]]))
 	h1=cvxopt.matrix(cvxopt.sparse([c1 for i in range(0,N)]), (N*2,1))
 
-	sol=cvxopt.solvers.qp(P1,q,G1,h1)
+	sol=cvxopt.solvers.qp(P1,q)#,G1,h1)
 
 	controlInput=controlInput+sol['x'][0:2]
 
@@ -161,9 +155,9 @@ def traj(x, y, v, psi, beta, CC):
 
 	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
 	ySigma=cos(psit)*(y-yt) - sin(psit)*(x-xt)
-	psiSigma=psi+beta-psit
+	psiSigma=psi-psit
 
-	dtSigma=sqrt(v.x**2+v.y**2)*cos(beta+psiSigma)/(1-ySigma/CC.rho(phi))
+	dtSigma=sqrt(v.x*cos(psiSigma)-v.y*sin(psiSigma))/(1-ySigma/CC.rho(phi))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
@@ -181,13 +175,13 @@ def callbackOdom(msg):
 	velocity=Twist.linear
 	angularVelocity=Twist.angular	
 
-	psi, alpha, beta, theta=getAngles(position, orientation, velocity, angularVelocity)
+	theta, alpha, beta, psi=getAngles(position, orientation, velocity, angularVelocity)
 
 	controlInput=control(position.x,position.y,psi,psi-theta)
 
 	print(controlInput)
 
-	pubThrottle.publish(1)
+	pubThrottle.publish(controlInput[0])
 	pubSteering.publish(controlInput[1])
 
 	#print("psi"+str(psi))
