@@ -279,6 +279,6 @@ def main():
 
 		elapsedTime+=deltaTime
 		vrep.simxSynchronousTrigger(clientID)
-		sleep(0.01)
+		sleep(0.05)
 if __name__=="__main__":
 	main()

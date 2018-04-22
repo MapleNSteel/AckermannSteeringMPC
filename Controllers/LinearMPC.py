@@ -44,7 +44,7 @@ Q=cvxopt.matrix(np.array(np.diag([1, 0.01])))#Running Cost - x
 R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
 S=Q#Terminal Cost -x
 
-N=10 #Window length
+N=30 #Window length
 T=0
 
 vmin=1.0
