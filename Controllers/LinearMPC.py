@@ -41,10 +41,10 @@ stateLength=2
 controlLength=2
 
 Q=cvxopt.matrix(np.array(np.diag([1, 0.01])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
+R=cvxopt.matrix(np.array(np.diag([1e-4, 1])))#Running Cost - u
 S=Q#Terminal Cost -x
 
-N=30 #Window length
+N=2 #Window length
 T=0
 
 vmin=1.0
@@ -53,14 +53,6 @@ vmax=1.0
 smin=-0.48434
 smax=0.48434
 
-def forwardDifference(N, l):
-	D=np.eye(N*l)
-	
-	for i in range(l, N*l):
-		D[i, i-l]=-1
-
-	return D
-
 def jacobianF(u,rho,psi, ds):
 
 	global deltaSigma
@@ -68,7 +60,9 @@ def jacobianF(u,rho,psi, ds):
 	v=u[0]
 	d=u[1]
 
-	return np.eye(2)+np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + v*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*ds*deltaTime
+	A=np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + v*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*ds*deltaTime
+
+	return scipy.linalg.expm(A)
 
 def jacobianH(u,rho,psi ,ds):
 
@@ -77,7 +71,12 @@ def jacobianH(u,rho,psi ,ds):
 	v=u[0]
 	d=u[1]
 
-	return np.array([[0, (Lr*(tan(d)**2 + 1)*(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + rho*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2)*(Lf + Lr))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])*ds*deltaTime
+	
+	A=np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + v*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*ds*deltaTime
+
+	B=np.array([[0, (Lr*(tan(d)**2 + 1)*(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + rho*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2)*(Lf + Lr))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])*ds*deltaTime
+
+	return (scipy.linalg.expm(A)-np.eye(stateLength))*B*np.linalg.inv(A)
 
 def exit_gracefully(signum, frame):
 
@@ -88,17 +87,7 @@ def exit_gracefully(signum, frame):
 	# in raw_input when CTRL+C is pressed, and our signal handler is not re-entrant
 	signal.signal(signal.SIGINT, original_sigint)
 
-	try:
-		if input("\nReally quit? (y/n)> ").lower().startswith('y'):
-			time.sleep(1)
-			sys.exit(1)
-
-	except KeyboardInterrupt:
-		print("Ok ok, quitting")
-		sys.exit(1)
-	
-	# restore the exit gracefully handler here	
-	signal.signal(signal.SIGINT, exit_gracefully)
+	sys.exit(1)
 
 def getAngles(position, orientation, velocity, angularVelocity):
 	angles=transforms3d.euler.quat2euler(np.array([orientation.w,orientation.x,orientation.y,orientation.z]))
@@ -123,8 +112,8 @@ def control(x, y, psi, beta):
 	pubySigma.publish(ySigma)
 	
 	x=cvxopt.matrix(np.array([[ySigma[0]], [psiSigma[0]], [controlInput[0]], [controlInput[1]]]))
-
-	B=cvxopt.matrix(jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi ,ds))
+	v=np.sqrt(velocity.x**2+velocity.y**2)
+	B=cvxopt.matrix(jacobianH(cvxopt.matrix([v, controlInput[1]]), cc.rho(phi), psi ,ds))
 	C=cvxopt.matrix(np.eye(stateLength))
 	A=cvxopt.matrix(jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds))
 
@@ -204,22 +193,31 @@ def callbackOdom(msg):
 	velocity=Twist.linear
 	angularVelocity=Twist.angular	
 
-	theta, alpha, beta, psi=getAngles(position, orientation, velocity, angularVelocity)
-
-	controlInput=control(position.x,position.y,psi,psi-theta)
-	controlInput[1]=np.arctan2(sin(controlInput[1]), cos(controlInput[1]))
-
-	print(controlInput)
-
-	pubThrottle.publish(controlInput[0])
-	pubSteering.publish(controlInput[1])
-
 	#print("psi"+str(psi))
 	#print("Alpha"+str(alpha))
 	#print("Beta"+str(beta))
 	#print("theta"+str(theta))
 	#print()
 
+def sendControl():
+	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, elapsedTime
+
+	try:
+
+		theta, alpha, beta, psi=getAngles(position, orientation, velocity, angularVelocity)
+
+		controlInput=control(position.x,position.y,psi,psi-theta)
+		controlInput[1]=np.arctan2(sin(controlInput[1]), cos(controlInput[1]))
+
+		print(controlInput)
+
+		pubThrottle.publish(controlInput[0])
+		pubSteering.publish(controlInput[1])
+
+	except(NameError):
+		return
+		
+	
 def main():
 
 	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubySigma, CC, CC1, CC2
@@ -259,6 +257,7 @@ def main():
 	signal.signal(signal.SIGINT, exit_gracefully)
 
 	while(running):
-		pass
+		sendControl()
+		sleep(0.05)
 if __name__=="__main__":
 	main()
