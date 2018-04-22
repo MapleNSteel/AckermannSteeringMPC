@@ -71,45 +71,45 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, psid, beta):
 
-		global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, T, elapsedTime
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, T, elapsedTime
 
-		[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, CC)
-		accum=accum+ySigma
+	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, CC)
+	accum=accum+ySigma
+
+	desiredSpeed=1
+	desiredSteeringAngle=-Kp*ySigma+-Ki*accum+-Kd*(ySigma-ySigmaPrev)
+	ySigmaPrev=ySigma
 	
-		desiredSpeed=1
-		desiredSteeringAngle=-Kp*ySigma+-Ki*accum+-Kd*(ySigma-ySigmaPrev)
-		ySigmaPrev=ySigma
-		
-		T=elapsedTime
+	T=elapsedTime
 
-		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma)+"    dtSigma:"+str(dtSigma)+"    T:"+str(T)+"    psid:"+str(psid))
-		
-		if(desiredSteeringAngle<-np.pi/3):
-			desiredSteeringAngle=-np.pi/3
-		elif(desiredSteeringAngle>np.pi/3):
-			desiredSteeringAngle=np.pi/3
-
-
-		pubySigma.publish(T)
-
-		return [desiredSpeed,desiredSteeringAngle]
-
-def traj(x, y, v, psi, beta, cc):
+	#print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma)+"    dtSigma:"+str(dtSigma)+"    T:"+str(T)+"    psid:"+str(psid))
 	
-	cc.setCoordinates(x,y)
-	phi=cc.getCoordinates()
+	if(desiredSteeringAngle<-np.pi/3):
+		desiredSteeringAngle=-np.pi/3
+	elif(desiredSteeringAngle>np.pi/3):
+		desiredSteeringAngle=np.pi/3
 
-	xt=cc.X(phi)
-	yt=cc.Y(phi)
-	tangent=cc.tangent(phi)
+
+	pubySigma.publish(ySigma)
+
+	return [desiredSpeed,desiredSteeringAngle]
+
+def traj(x, y, v, psi, beta, CC):
+	
+	CC.setCoordinates(x,y)
+	phi=CC.getCoordinates()
+
+	xt=CC.X(phi)
+	yt=CC.Y(phi)
+	tangent=CC.tangent(phi)
 	psit=arctan2(tangent[1], tangent[0])
 	normal=np.array([tangent[1],-tangent[0]])
 
-	xSigma=scipy.integrate.quad(lambda x: np.sqrt(cc.tangent(x)[0]**2+cc.tangent(x)[1]**2), 0, phi)[0]
+	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
 	ySigma=cos(psit)*(y-yt) - sin(psit)*(x-xt)
 	psiSigma=psi-psit
 
-	dtSigma=sqrt(v.x*cos(psiSigma)-v.y*sin(psiSigma))/(1-ySigma/cc.rho(phi))
+	dtSigma=(v.x*cos(psiSigma)-v.y*sin(psiSigma))/(1-ySigma/CC.rho(phi))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]	
 
@@ -134,6 +134,8 @@ def callbackOdom(msg):
 	
 	pubThrottle.publish(controlInput[0])
 	pubSteering.publish(controlInput[1])
+
+	print(controlInput)
 	
 	#print("psi"+str(psi))
 	#print("Alpha"+str(alpha))

@@ -1,4 +1,3 @@
-#Doesnae work rae
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
@@ -19,6 +18,10 @@ import transforms3d
 from KalmanFilters.EKF import ExtendedKalmanFilter
 from CurvilinearCoordinates import *
 
+import muaompc
+import numpy
+import system
+
 running=True
 elapsedTime=0
 deltaTime=10./1000.
@@ -32,17 +35,23 @@ Lf=1.2884
 
 L=3.3138
 
-controlInput=cvxopt.matrix(np.array([[0.5],[0]]))
+controlInput=cvxopt.matrix(np.array([[1],[0.48434]]))
 
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.eye(stateLength))*100#Running Cost - x
-R=cvxopt.matrix(np.eye(controlLength))*1#Running Cost - u
-P=cvxopt.matrix(np.eye(stateLength))*1000#Terminal Cost -x
+Q=cvxopt.matrix(np.array(np.diag([1, 0.01])))#Running Cost - x
+R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
+S=Q#Terminal Cost -x
 
 N=10 #Window length
 T=0
+
+vmin=1.0
+vmax=1.0
+
+smin=-0.48434
+smax=0.48434
 
 def forwardDifference(N, l):
 	D=np.eye(N*l)
@@ -52,23 +61,23 @@ def forwardDifference(N, l):
 
 	return D
 
-def jacobianF(u,rho,beta,psi):
+def jacobianF(u,rho,psi, ds):
 
 	global deltaSigma
 
 	v=u[0]
 	d=u[1]
 
-	return np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), 2/(cos(2*psi + 2*arctan((Lr*sin(d))/(cos(d)*(Lf + Lr)))) + 1)],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*deltaSigma
+	return np.eye(2)+np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + v*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*ds*deltaTime
 
-def jacobianH(u,rho,beta,psi):
+def jacobianH(u,rho,psi ,ds):
 
 	global deltaSigma
 
 	v=u[0]
 	d=u[1]
 
-	return np.array([[0, (Lr*(tan(d)**2 + 1)*(Lf + Lr))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])
+	return np.array([[0, (Lr*(tan(d)**2 + 1)*(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + rho*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2)*(Lf + Lr))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])*ds*deltaTime
 
 def exit_gracefully(signum, frame):
 
@@ -105,7 +114,7 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, T, elapsedTime, controlInput, deltaSigma
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vmin, vmax, smin, smax
 
 	cc=CC
 	[phi, xSigma, ySigma, psiSigma, ds]=traj(x, y, velocity, psi, beta, cc)
@@ -113,32 +122,52 @@ def control(x, y, psi, beta):
 	xSigmaPrev=xSigma
 	pubySigma.publish(ySigma)
 	
-	x=cvxopt.matrix(np.array([[ySigma[0]], [psiSigma[0]]]))
+	x=cvxopt.matrix(np.array([[ySigma[0]], [psiSigma[0]], [controlInput[0]], [controlInput[1]]]))
 
-	Qs=cvxopt.spdiag([Q if i<(N-1) else P for i in range(0,N)])
-	Rs=cvxopt.spdiag([R for i in range(0,N)])
-
-	B=cvxopt.matrix(jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), beta, psi))
+	B=cvxopt.matrix(jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi ,ds))
 	C=cvxopt.matrix(np.eye(stateLength))
-	A=cvxopt.matrix(jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), beta, psi))
+	A=cvxopt.matrix(jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds))
 
-	G=cvxopt.sparse([C*(A**i) for i in range(0,N)])
-	H=cvxopt.sparse([cvxopt.sparse([[C*(A**j)*B if j<=i else cvxopt.matrix(np.zeros(np.shape(B)))] for j in range(0,N)]) for i in range(0,N)])
-	F=cvxopt.sparse([C*(A**i)*B for i in range(0,N)])
+	Atilde=cvxopt.matrix(cvxopt.sparse([[A, cvxopt.matrix(np.zeros(np.shape(B.trans())))],[B, cvxopt.matrix(np.eye(controlLength))]]))
+	Btilde=cvxopt.sparse([[B,cvxopt.matrix(np.eye(controlLength))]])
+	Ctilde=cvxopt.sparse([[C], [cvxopt.matrix(np.zeros((controlLength,controlLength)))]])
 
-	#Final Matrice
-	D=cvxopt.matrix(forwardDifference(N, controlLength))
-	Y=Rs+H.trans()*Qs.trans()*H
+	Rtilde=cvxopt.spdiag([R for i in range(0,N)])
+	Qtilde=cvxopt.spdiag([Ctilde.trans()*Q*Ctilde if i<(N-1) else Ctilde.trans()*S*Ctilde for i in range(0,N)])
 
-	P1=2*Y
-	q=H.trans()*Qs*G*x
-	G1=cvxopt.sparse([cvxopt.matrix([[0,1], [0,-1]]).trans() for i in range(0,N)])
-	c1=cvxopt.matrix(np.array([[pi/3],[pi/3]]))
-	h1=cvxopt.matrix(cvxopt.sparse([c1 for i in range(0,N)]), (N*2,1))
+	b=[]
+	for i in range(0,N):
+		a=[]
+		for j in range(0,N):
+			if(j<=i):
+				a.append((cvxopt.matrix(numpy.linalg.matrix_power(Atilde, N-j))*Btilde).trans())
+			else:
+				a.append(cvxopt.matrix(np.zeros(Btilde.size)).trans())
+		b.append(a)
 
-	sol=cvxopt.solvers.qp(P1,q)#,G1,h1)
+	Bhat=cvxopt.sparse(b).trans()
+	Ahat=cvxopt.sparse([cvxopt.matrix(numpy.linalg.matrix_power(Atilde, i+1)) for i in range(0,N)])
 
+	#Final Matrices
+	P1=Bhat.trans()*Qtilde*Bhat+Rtilde
+	q=(Bhat.trans()*Qtilde.trans()*Ahat*x)
+	
+	g=cvxopt.matrix(np.array([[0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1], [0, 0, 0, -1]]), tc='d')
+	h=cvxopt.matrix(np.array([[vmax], [-vmin], [smax], [-smin]]), tc='d')
+
+	G=cvxopt.spdiag([g for i in range(0,N)])*Bhat
+	H=cvxopt.matrix(cvxopt.sparse([h for i in range(0,N)]), tc='d')-cvxopt.spdiag([g for i in range(0,N)])*Ahat*x
+
+	#print("cvxopt.spdiag([g for i in range(0,N)])")
+	#print(cvxopt.spdiag([g for i in range(0,N)]))
+	#print("Bhat")
+	#print(Bhat)
+	#print("G")
+	#print(G)
+
+	sol=cvxopt.solvers.qp(P1,q,G,H)
 	controlInput=controlInput+sol['x'][0:2]
+	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
 
 	return np.array(controlInput)
 
@@ -157,7 +186,7 @@ def traj(x, y, v, psi, beta, CC):
 	ySigma=cos(psit)*(y-yt) - sin(psit)*(x-xt)
 	psiSigma=psi-psit
 
-	dtSigma=sqrt(v.x*cos(psiSigma)-v.y*sin(psiSigma))/(1-ySigma/CC.rho(phi))
+	dtSigma=(v.x*cos(psiSigma)-v.y*sin(psiSigma))/(1-ySigma/CC.rho(phi))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
@@ -178,6 +207,7 @@ def callbackOdom(msg):
 	theta, alpha, beta, psi=getAngles(position, orientation, velocity, angularVelocity)
 
 	controlInput=control(position.x,position.y,psi,psi-theta)
+	controlInput[1]=np.arctan2(sin(controlInput[1]), cos(controlInput[1]))
 
 	print(controlInput)
 
@@ -198,8 +228,8 @@ def main():
 	startTime=time.time()
 
 	rospy.Subscriber("/ackermann/Odom", Odometry, callbackOdom)
-	pubThrottle = rospy.Publisher('/ackermann/Throttle', Float32, queue_size=10)
-	pubSteering = rospy.Publisher('/ackermann/Steering', Float32, queue_size=10)
+	pubThrottle = rospy.Publisher('/ackermann/Throttle', Float32, queue_size=1)
+	pubSteering = rospy.Publisher('/ackermann/Steering', Float32, queue_size=1)
 
 	pubySigma = rospy.Publisher('/ackermann/ySigma', Float32, queue_size=10)
 
@@ -211,7 +241,7 @@ def main():
 
 	CC=CurvilinearCoordinates(X,Y,tangent,rho)
 
-	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-4.5
+	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-4.0
 	Y1=lambda t: 5*(1-0.1*cos(3*t))*sin(t)
 	tangent1=lambda t: np.array([5*(0.1*3*sin(3*t))*cos(t)-5*(1-0.1*cos(3*t))*sin(t), 5*(0.1*3*sin(3*t))*sin(t)+5*(0.1*cos(3*t))*cos(t)])
 	rho1= lambda t: 1/((abs((cos(2*t) + 4*cos(4*t) - 5*cos(t))/(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2) - ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(sin(2*t)/2 + sin(4*t) - 5*sin(t)))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2 + abs((10*sin(t) + 36*cos(t)*sin(t) - 64*cos(t)**3*sin(t))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)) + ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3))/(4*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2)**(1/2)/(abs(8*cos(t)**4 - 9*cos(t)**2 - 5*cos(t) + 3/2)**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2))

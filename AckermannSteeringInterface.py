@@ -184,6 +184,7 @@ def getVehicleState():
 	EKF.predict(np.array([desiredSpeed, desiredSteeringAngle]))
 	EKF.update(Pose)#update Kalman
 	x,P=EKF.getPrediction()
+	#x=Pose
 
 	rot[2,0]=-np.cos(x[2])
 	rot[2,1]=-np.sin(x[2])*cos(beta)
@@ -255,7 +256,7 @@ def main():
 	rospy.Subscriber("/ackermann/Throttle", Float32, callbackThrottle)
 	rospy.Subscriber("/ackermann/Steering", Float32, callbackSteering)	
 
-	pubOdom = rospy.Publisher('/ackermann/Odom', Odometry, queue_size=10)
+	pubOdom = rospy.Publisher('/ackermann/Odom', Odometry, queue_size=1)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
 	signal.signal(signal.SIGINT, exit_gracefully)
@@ -278,5 +279,6 @@ def main():
 
 		elapsedTime+=deltaTime
 		vrep.simxSynchronousTrigger(clientID)
+		sleep(0.01)
 if __name__=="__main__":
 	main()
