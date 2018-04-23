@@ -21,7 +21,6 @@ import transforms3d
 from KalmanFilters.EKF import ExtendedKalmanFilter
 from CurvilinearCoordinates import *
 
-import muaompc
 import numpy
 import system
 
@@ -47,7 +46,7 @@ Q=cvxopt.matrix(np.array(np.diag([1, 0.01])))#Running Cost - x
 R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
 S=Q#Terminal Cost -x
 
-N=5 #Window length
+N=10 #Window length
 T=0
 
 vmin=0.8
@@ -58,6 +57,15 @@ smax=0.5
 
 ready=False
 
+def f(x, u, rho,psi, ds):
+	
+	global deltaSigma
+
+	v=u[0]
+	d=u[1]
+
+	return np.array([[sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))], [tan(d)/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)) - 1/rho]])*deltaSigma
+
 def jacobianF(u,rho,psi, ds):
 
 	global deltaSigma
@@ -65,7 +73,7 @@ def jacobianF(u,rho,psi, ds):
 	v=u[0]
 	d=u[1]
 
-	return np.eye(stateLength)+np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + v*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*ds*deltaTime
+	return np.eye(stateLength)+np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + v*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*deltaSigma
 
 def jacobianH(u,rho,psi ,ds):
 
@@ -74,7 +82,7 @@ def jacobianH(u,rho,psi ,ds):
 	v=u[0]
 	d=u[1]
 
-	return np.array([[0, (Lr*(tan(d)**2 + 1)*(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + rho*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2)*(Lf + Lr))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])*ds*deltaTime
+	return np.array([[0, (Lr*(tan(d)**2 + 1)*(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + rho*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2)*(Lf + Lr))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])*deltaSigma
 
 def exit_gracefully(signum, frame):
 
@@ -125,6 +133,18 @@ def control(x, y, psi, beta):
 	Rhat=cvxopt.spdiag([R for i in range(0,N)])
 	Qhat=cvxopt.spdiag([Ctilde.trans()*Q*Ctilde if i<(N-1) else Ctilde.trans()*S*Ctilde for i in range(0,N)])
 
+	fbar=f(cvxopt.matrix(np.array([[ySigma[0]], [psiSigma[0]]])), cvxopt.matrix(controlInput), cc.rho(phi), psi ,ds)
+	Cbar=cvxopt.matrix(np.array([[fbar[0][0]], [fbar[1][0]], [0], [0]]))
+
+	b=[]
+	temp=cvxopt.matrix(np.eye(stateLength+controlLength))
+	for i in range(0,N):
+		b.append(temp)
+		temp=temp+Atilde*b[-1]
+
+	T1=cvxopt.sparse(b)
+	Chat=T1*Cbar
+
 	b=[]
 	for i in range(0,N):
 		a=[]
@@ -157,8 +177,8 @@ def control(x, y, psi, beta):
 
 	#Final Matrices
 	P1=(Bhat.trans()*Qhat*Bhat+Rhat)/2
-	xAdj=cvxopt.sparse([[x.trans()], [r.trans()]])
-	F=cvxopt.sparse([Ahat.trans()*Qhat*Bhat,-That*Bhat])
+	xAdj=cvxopt.sparse([[x.trans()], [r.trans()], [Chat.trans()]])
+	F=cvxopt.sparse([Ahat.trans()*Qhat*Bhat,-That*Bhat, Qhat*Bhat])
 	q=cvxopt.matrix(xAdj*F).trans()
 	#print(q)
 	
@@ -168,12 +188,7 @@ def control(x, y, psi, beta):
 	G=cvxopt.spdiag([g for i in range(0,N)])*Bhat
 	H=cvxopt.sparse([h for i in range(0,N)])-cvxopt.spdiag([g for i in range(0,N)])*Ahat*x
 
-	#print("cvxopt.spdiag([g for i in range(0,N)])")
-	#print(cvxopt.spdiag([g for i in range(0,N)]))
-	#print("Bhat")
-	#print(Bhat)
-	#print("G")
-	#print(G)
+	
 
 	sol=cvxopt.solvers.qp(P1,q,G,H)
 	controlInput=controlInput+sol['x'][0:2]
