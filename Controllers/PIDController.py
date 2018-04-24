@@ -13,7 +13,7 @@ from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 import transforms3d
 from KalmanFilters.EKF import ExtendedKalmanFilter
-from CurvilinearCoordinates import *
+from Utilities.CurvilinearCoordinates import *
 
 running=True
 elapsedTime=0
