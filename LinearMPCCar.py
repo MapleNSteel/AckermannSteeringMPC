@@ -139,7 +139,7 @@ def control(x, y, psi, beta):
 	x=np.array([ySigma, psiSigma, controlInput[0], controlInput[1]])
 	r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0]])) for i in range(0,N)])
 
-	ds=dtSigma*deltaTime*0.0001
+	ds=dtSigma*deltaTime*0.01
 
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	C=np.eye(stateLength)
