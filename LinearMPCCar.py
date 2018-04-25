@@ -33,22 +33,20 @@ xSigmaPrev=0
 Lr=1.2888
 Lf=1.2884
 
-L=3.3138
-
 controlInput=cvxopt.matrix(np.array([[0],[0]]))
 
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([5e-4, 1e-10])))#Running Cost - x
+Q=cvxopt.matrix(np.array(np.diag([1e-2, 1e-4])))#Running Cost - x
 R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-3])))#Running Cost - u
-S=cvxopt.matrix(np.array(np.diag([1e-10, 1e-10])))#TerMinal Cost -x
+S=cvxopt.matrix(np.array(np.diag([1e-2, 1e-4])))#TerMinal Cost -x
 
 N=10 #Window length
 T=0
 
-yeMin=-0.08
-yeMax=0.08
+yeMin=-0.15
+yeMax=0.15
 
 psieMin=-pi/18
 psieMax=pi/18
@@ -56,8 +54,8 @@ psieMax=pi/18
 vMin=0.8
 vMax=1.0
 
-sMin=-0.5
-sMax=0.5
+sMin=-0.6
+sMax=0.6
 
 g=cvxopt.matrix(np.array([[1, 0, 0, 0], [-1, 0, 0, 0], [0, 1, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1], [0, 0, 0, -1]]), tc='d')
 h=cvxopt.sparse([cvxopt.matrix(np.array([[yeMax], [-yeMin], [psieMax], [-psieMin], [vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
