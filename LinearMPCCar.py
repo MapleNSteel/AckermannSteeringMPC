@@ -41,8 +41,8 @@ stateLength=2
 controlLength=2
 
 Q=cvxopt.matrix(np.array(np.diag([1, 0.01])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
-S=Q*2#Terminal Cost -x
+R=cvxopt.matrix(np.array(np.diag([1e-1, 1e-1])))#Running Cost - u
+S=Q#Terminal Cost -x
 
 N=10 #Window length
 T=0
@@ -114,16 +114,16 @@ def control(x, y, psi, beta):
 	xSigmaPrev=xSigma
 	pubySigma.publish(ySigma)
 	
-	x=np.array([ySigma[0], psiSigma[0], controlInput[0], controlInput[1]])
+	x=np.array([ySigma, psiSigma, controlInput[0], controlInput[1]])
 	r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0]])) for i in range(0,N)])
 
-	ds=deltaSigma*deltaTime
+	ds=dtSigma*deltaTime*0.0001
 
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	C=np.eye(stateLength)
 	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
 
-	fbar=f(np.array([ySigma[0], psiSigma[0]]), controlInput, cc.rho(phi), psi , ds)
+	fbar=f(np.array([ySigma, psiSigma]), controlInput, cc.rho(phi), psi , ds)
 	Cbar=np.array([[fbar[0][0]], [fbar[1][0]], [0], [0]])
 
 	try:
@@ -140,21 +140,21 @@ def control(x, y, psi, beta):
 def traj(x, y, v, psi, beta, CC):
 	
 	CC.setCoordinates(x,y)
-	phi=CC.getCoordinates()
+	phi=np.squeeze(CC.getCoordinates()) 
 
-	xt=CC.X(phi)
-	yt=CC.Y(phi)
+	xt=np.squeeze(CC.X(phi))
+	yt=np.squeeze(CC.Y(phi))
 	tangent=CC.tangent(phi)
-	psit=arctan2(tangent[1], tangent[0])
-	normal=np.array([tangent[1],-tangent[0]])
+	psit=np.squeeze(arctan2(tangent[1], tangent[0]))
+	normal=np.squeeze(np.array([tangent[1],-tangent[0]]))
 
-	xSigma=scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0]
-	ySigma=cos(psit)*(y-yt) - sin(psit)*(x-xt)
-	psiSigma=psi-psit
+	xSigma=np.squeeze(scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0])
+	ySigma=np.squeeze(cos(psit)*(y-yt) - sin(psit)*(x-xt))
+	psiSigma=np.squeeze(psi-psit)
 
 	v=np.sqrt(v.x**2+v.y**2)
 
-	dtSigma=CC.rho(phi)*(v*cos(psiSigma) - v*sin(psiSigma))/(1-ySigma)
+	dtSigma=np.squeeze(CC.rho(phi)*(v*cos(psiSigma) - v*sin(psiSigma))/(1-ySigma))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
