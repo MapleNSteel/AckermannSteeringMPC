@@ -41,7 +41,7 @@ stateLength=2
 controlLength=2
 
 Q=cvxopt.matrix(np.array(np.diag([1, 0.01])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-1, 1e-1])))#Running Cost - u
+R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
 S=Q#Terminal Cost -x
 
 N=10 #Window length
@@ -106,9 +106,9 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, CC, CC1, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vmin, vmax, smin, smax, g, h
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vmin, vmax, smin, smax, g, h
 
-	cc=CC
+	cc=Jessica
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
 	deltaSigma=xSigma-xSigmaPrev
 	xSigmaPrev=xSigma
@@ -128,7 +128,7 @@ def control(x, y, psi, beta):
 
 	try:
 		deltaControl=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, fbar, Cbar)
-	except(ArithmeticError):
+	except(ArithmeticError or Warning):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
 		return np.array(controlInput)
 
@@ -200,7 +200,7 @@ def sendControls():
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubySigma, CC, CC1, CC2
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubySigma, Jessica, CC, CC2
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -217,14 +217,14 @@ def main():
 
 	rho=lambda t: 10
 
-	CC=CurvilinearCoordinates(X,Y,tangent,rho)
+	Jessica=CurvilinearCoordinates(X,Y,tangent,rho)
 
-	X1=lambda t: 5*(1-0.1*cos(3*t))*cos(t)-4.0
-	Y1=lambda t: 5*(1-0.1*cos(3*t))*sin(t)
-	tangent1=lambda t: np.array([5*(0.1*3*sin(3*t))*cos(t)-5*(1-0.1*cos(3*t))*sin(t), 5*(0.1*3*sin(3*t))*sin(t)+5*(0.1*cos(3*t))*cos(t)])
-	rho1= lambda t: 1/((abs((cos(2*t) + 4*cos(4*t) - 5*cos(t))/(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2) - ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(sin(2*t)/2 + sin(4*t) - 5*sin(t)))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2 + abs((10*sin(t) + 36*cos(t)*sin(t) - 64*cos(t)**3*sin(t))/(2*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2)) + ((2*sign(sin(2*t)/2 + sin(4*t) - 5*sin(t))*abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))*(cos(2*t) + 4*cos(4*t) - 5*cos(t)) - 2*sign(cos(2*t)/2 - cos(4*t) + 5*cos(t))*abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))*(sin(2*t) - 4*sin(4*t) + 5*sin(t)))*(10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3))/(4*(abs(cos(4*t) - cos(2*t)/2 - 5*cos(t))**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(3/2)))**2)**(1/2)/(abs(8*cos(t)**4 - 9*cos(t)**2 - 5*cos(t) + 3/2)**2 + abs(sin(2*t)/2 + sin(4*t) - 5*sin(t))**2)**(1/2))
+	X1=lambda t: 5*(1-0.2*cos(3*t))*cos(t)-4.0
+	Y1=lambda t: 5*(1-0.2*cos(3*t))*sin(t)
+	tangent1=lambda t: np.array([(sin(2*t) + 2*sin(4*t) - 10*sin(t))/(105 - 4*cos(6*t) - 20*cos(3*t))**(1/2), (10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3)/(- 8*cos(3*t)**2 - 20*cos(3*t) + 109)**(1/2)])
+	rho1= lambda t: -(-(20*cos(3*t) + 8*cos(3*t)**2 - 109)**3)**(1/2)/(4*(55*cos(3*t) + 4*cos(3*t)**2 - 59))
 
-	CC1=CurvilinearCoordinates(X1,Y1,tangent1,rho1)
+	CC=CurvilinearCoordinates(X1,Y1,tangent1,rho1)
 
 	X2=lambda t: 0.1*(.05*t**2+0.15*t**3)
 	Y2=lambda t: t
