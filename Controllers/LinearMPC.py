@@ -73,8 +73,8 @@ def getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, fbar
 	q=cvxopt.matrix(xAdj*F).trans()
 	#print(q)
 
-	G=cvxopt.spdiag([g for i in range(0,N)])*Bhat
-	H=cvxopt.sparse([h for i in range(0,N)])-cvxopt.spdiag([g for i in range(0,N)])*Ahat*x
+	G=g*Bhat
+	H=h-g*Ahat*x
 
 	sol=cvxopt.solvers.qp(P1,q,G,H)['x'][0:2]
 

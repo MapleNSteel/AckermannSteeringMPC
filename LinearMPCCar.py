@@ -40,21 +40,43 @@ controlInput=cvxopt.matrix(np.array([[0],[0]]))
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([1, 0.01])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
-S=Q#Terminal Cost -x
+Q=cvxopt.matrix(np.array(np.diag([5e-4, 1e-10])))#Running Cost - x
+R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-3])))#Running Cost - u
+S=cvxopt.matrix(np.array(np.diag([1e-10, 1e-10])))#TerMinal Cost -x
 
 N=10 #Window length
 T=0
 
-vmin=0.8
-vmax=1.0
+yeMin=-0.08
+yeMax=0.08
 
-smin=-0.5
-smax=0.5
+psieMin=-pi/18
+psieMax=pi/18
 
-g=cvxopt.matrix(np.array([[0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1], [0, 0, 0, -1]]), tc='d')
-h=cvxopt.matrix(np.array([[vmax], [-vmin], [smax], [-smin]]), tc='d')
+vMin=0.8
+vMax=1.0
+
+sMin=-0.5
+sMax=0.5
+
+g=cvxopt.matrix(np.array([[1, 0, 0, 0], [-1, 0, 0, 0], [0, 1, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1], [0, 0, 0, -1]]), tc='d')
+h=cvxopt.sparse([cvxopt.matrix(np.array([[yeMax], [-yeMin], [psieMax], [-psieMin], [vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
+
+c=[]
+d=[]
+
+for i in range(0,N):
+	a=[]
+	b=[]
+	for j in range(0,N):
+		if(j==i):
+			a.append(g)
+			b.append(h)
+		else:
+			a.append(cvxopt.matrix(np.zeros(np.shape(g))))
+	c.append(a)
+
+g=cvxopt.sparse(c)
 
 ready=False
 
@@ -106,7 +128,7 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vmin, vmax, smin, smax, g, h
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vMin, vMax, sMin, sMax, g, h
 
 	cc=Jessica
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
@@ -128,7 +150,7 @@ def control(x, y, psi, beta):
 
 	try:
 		deltaControl=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, fbar, Cbar)
-	except(ArithmeticError or Warning):
+	except(ArithmeticError, ValueError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
 		return np.array(controlInput)
 
@@ -191,7 +213,7 @@ def sendControls():
 		controlInput=control(position.x,position.y,psi,psi-theta)
 		controlInput[1]=np.arctan2(sin(controlInput[1]), cos(controlInput[1]))
 
-		#print(controlInput)
+		print(controlInput)
 
 		pubThrottle.publish(controlInput[0])
 		pubSteering.publish(controlInput[1])

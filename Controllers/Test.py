@@ -15,25 +15,31 @@ stateLength=2
 controlLength=2
 N=4
 
-Q=cvxopt.matrix(np.array(np.diag([1, 0.01])))
-C=cvxopt.matrix(np.eye(stateLength))
-Ctilde=cvxopt.sparse([[C], [cvxopt.matrix(np.zeros((controlLength,controlLength)))]])
-S=Q*2#Terminal Cost -x
+d=[]
+c=[]
 
-b=[]
+vmin=0.8
+vmax=1.0
+
+smin=-0.5
+smax=0.5
+
+
+g=cvxopt.matrix(np.array([[0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1], [0, 0, 0, -1]]), tc='d')
+h=cvxopt.sparse([cvxopt.matrix(np.array([[vmax], [-vmin], [smax], [-smin]]), tc='d') for i in range(0,N)])
+
 for i in range(0,N):
 	a=[]
-	if(i!=N-1):
-		temp=Q*Ctilde
-	else:
-		temp=S*Ctilde
+	b=[]
 	for j in range(0,N):
 		if(j==i):
-			a.append(temp)
+			a.append(g)
+			b.append(h)
 		else:
-			a.append(cvxopt.matrix(np.zeros((stateLength+controlLength, stateLength))).trans())
-	b.append(a)
+			a.append(cvxopt.matrix(np.zeros(np.shape(g))))
+	c.append(a)
 
-That=cvxopt.sparse(b)
+g=cvxopt.sparse(c)
 
-print(cvxopt.sparse(b))
+print(g)
+print(h)
