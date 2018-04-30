@@ -38,9 +38,9 @@ controlInput=cvxopt.matrix(np.array([[0],[0]]))
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([1e-2, 1e-4])))#Running Cost - x
+Q=cvxopt.matrix(np.array(np.diag([1e-3, 1e-4])))#Running Cost - x
 R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-3])))#Running Cost - u
-S=cvxopt.matrix(np.array(np.diag([1e-2, 1e-4])))#TerMinal Cost -x
+S=cvxopt.matrix(np.array(np.diag([1e-5, 1e-5])))#TerMinal Cost -x
 
 N=10 #Window length
 T=0
@@ -51,7 +51,7 @@ yeMax=0.15
 psieMin=-pi/18
 psieMax=pi/18
 
-vMin=0.8
+vMin=1.0
 vMax=1.0
 
 sMin=-0.6
@@ -128,7 +128,7 @@ def control(x, y, psi, beta):
 
 	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vMin, vMax, sMin, sMax, g, h
 
-	cc=Jessica
+	cc=CC
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
 	deltaSigma=xSigma-xSigmaPrev
 	xSigmaPrev=xSigma
@@ -239,10 +239,15 @@ def main():
 
 	Jessica=CurvilinearCoordinates(X,Y,tangent,rho)
 
-	X1=lambda t: 5*(1-0.2*cos(3*t))*cos(t)-4.0
-	Y1=lambda t: 5*(1-0.2*cos(3*t))*sin(t)
-	tangent1=lambda t: np.array([(sin(2*t) + 2*sin(4*t) - 10*sin(t))/(105 - 4*cos(6*t) - 20*cos(3*t))**(1/2), (10*cos(t) + 18*cos(t)**2 - 16*cos(t)**4 - 3)/(- 8*cos(3*t)**2 - 20*cos(3*t) + 109)**(1/2)])
-	rho1= lambda t: -(-(20*cos(3*t) + 8*cos(3*t)**2 - 109)**3)**(1/2)/(4*(55*cos(3*t) + 4*cos(3*t)**2 - 59))
+	R=10
+	a=0
+	b=0
+
+	X1=lambda t: R*(a - 1) - R*cos(t)*(a*cos(b*t) - 1)
+	Y1=lambda t: -R*sin(t)*(a*cos(b*t) - 1)
+	tangent1=lambda t: np.array([(R*(a*cos(b*t)*sin(t) - sin(t) + a*b*sin(b*t)*cos(t)))/(abs(R)*(- a**2*b**2*cos(b*t)**2 + a**2*b**2 + a**2*cos(b*t)**2 - 2*a*cos(b*t) + 1)**(1/2)), (R*(cos(t) - a*cos(b*t)*cos(t) + a*b*sin(b*t)*sin(t)))/(abs(R)*(- a**2*b**2*cos(b*t)**2 + a**2*b**2 + a**2*cos(b*t)**2 - 2*a*cos(b*t) + 1)**(1/2))])
+	rho1= lambda t: (abs(R)*abs(a**2*cos(b*t)**2 - 2*a*cos(b*t) + a**2*b**2 - a**2*b**2*cos(b*t)**2 + 1)**(3/2))/abs(2*a*cos(b*t) - a**2*cos(b*t)**2 - 2*a**2*b**2 + a*b**2*cos(b*t) + a**2*b**2*cos(b*t)**2 - 1)
+
 
 	CC=CurvilinearCoordinates(X1,Y1,tangent1,rho1)
 
@@ -251,7 +256,7 @@ def main():
 	tangent2=lambda t: np.array([0.1*(0.05*2*t+0.15*3*t**2), 1])
 	rho2= lambda t: 1/((400*(abs((9*t + 1)*(4*t**2 - 36*t**3*sign(t*(9*t + 2))**2 - 81*t**4*sign(t*(9*t + 2))**2 - 4*t**2*sign(t*(9*t + 2))**2 + 36*t**3 + 81*t**4 + 40000*sign(t*(9*t + 2))**2))**2 + 40000*abs(t*(9*t + 2))**2*abs(sign(t*(9*t + 2))*(9*t + 1))**2*abs(sign(t*(9*t + 2)))**4)**(1/2))/(abs(sign(t*(9*t + 2)))**2*(abs(t*(9*t + 2))**2 + 40000)**2))
 			
-	CC2=CurvilinearCoordinates(X2,Y2,tangent1,rho2)
+	Schmidt=CurvilinearCoordinates(X2,Y2,tangent1,rho2)
 
 	global desiredSteeringAngle, desiredSpeed, position, rotation, velocity, angularVelocity
 	signal.signal(signal.SIGINT, exit_gracefully)
