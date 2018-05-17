@@ -147,7 +147,7 @@ def control(x, y, psi, beta):
 	Cbar=np.array([[fbar[0][0]], [fbar[1][0]], [0], [0]])
 
 	try:
-		deltaControl=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, fbar, Cbar)
+		deltaControl=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar)
 	except(ArithmeticError, ValueError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
 		return np.array(controlInput)

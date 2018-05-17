@@ -4,8 +4,12 @@ cvxopt.matrix_repr = cvxopt.printing.matrix_str_default
 cvxopt.printing.options['dformat'] = '%.2f'
 cvxopt.printing.options['width'] = -1
 cvxopt.solvers.options['show_progress'] = False
+cvxopt.solvers.options['maxiters'] = 100
+cvxopt.solvers.options['abstol'] = 1e-5
+cvxopt.solvers.options['reltol'] = 1e-5
+cvxopt.solvers.options['feastol'] = 1e-10
 
-def getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, fbar, Cbar):
+def getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar):
 
 	A=cvxopt.matrix(A)
 	B=cvxopt.matrix(B)
@@ -17,7 +21,6 @@ def getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, fbar
 	g=cvxopt.matrix(g)
 	h=cvxopt.matrix(h)
 
-	fbar=cvxopt.matrix(fbar)
 	Cbar=cvxopt.matrix(Cbar)
 
 	Atilde=cvxopt.matrix(cvxopt.sparse([[A, cvxopt.matrix(np.zeros(np.shape(B.trans())))],[B, cvxopt.matrix(np.eye(controlLength))]]))
@@ -68,13 +71,13 @@ def getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, fbar
 
 	#Final Matrices
 	P1=(Bhat.trans()*Qhat*Bhat+Rhat)/2
-	xAdj=cvxopt.sparse([[x.trans()], [r.trans()], [Chat.trans()]])
-	F=cvxopt.sparse([Ahat.trans()*Qhat*Bhat,-That*Bhat, Qhat*Bhat])
-	q=cvxopt.matrix(xAdj*F).trans()
+	xAdj=cvxopt.sparse([x, r, Chat])
+	F=cvxopt.sparse([[Bhat.trans()*Qhat.trans()*Ahat],[-Bhat.trans()*That.trans()], [Bhat.trans()*Qhat.trans()]])
+	q=cvxopt.matrix(F*xAdj)
 	#print(q)
 
 	G=g*Bhat
-	H=h-g*Ahat*x
+	H=h-g*Ahat*x-g*Chat
 
 	sol=cvxopt.solvers.qp(P1,q,G,H)['x'][0:2]
 
