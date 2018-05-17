@@ -38,9 +38,9 @@ controlInput=cvxopt.matrix(np.array([[0],[0]]))
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([1e-3, 1e-4])))#Running Cost - x
+Q=cvxopt.matrix(np.array(np.diag([1, 1e-4])))#Running Cost - x
 R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-3])))#Running Cost - u
-S=cvxopt.matrix(np.array(np.diag([1e-5, 1e-5])))#TerMinal Cost -x
+S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
 
 N=10 #Window length
 T=0
@@ -52,7 +52,7 @@ psieMin=-pi/18
 psieMax=pi/18
 
 vMin=1.0
-vMax=1.0
+vMax=0.5
 
 sMin=-0.6
 sMax=0.6
@@ -137,6 +137,9 @@ def control(x, y, psi, beta):
 	x=np.array([ySigma, psiSigma, controlInput[0], controlInput[1]])
 	r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0]])) for i in range(0,N)])
 
+	#print(dtSigma*deltaTime)
+	#print(deltaSigma)
+
 	ds=dtSigma*deltaTime*0.0001
 
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
@@ -164,7 +167,7 @@ def traj(x, y, v, psi, beta, CC):
 
 	xt=np.squeeze(CC.X(phi))
 	yt=np.squeeze(CC.Y(phi))
-	tangent=CC.tangent(phi)
+	tangent=CC.tangent(phi)/np.linalg.norm(CC.tangent(phi))
 	psit=np.squeeze(arctan2(tangent[1], tangent[0]))
 	normal=np.squeeze(np.array([tangent[1],-tangent[0]]))
 
@@ -174,7 +177,7 @@ def traj(x, y, v, psi, beta, CC):
 
 	v=np.sqrt(v.x**2+v.y**2)
 
-	dtSigma=np.squeeze(CC.rho(phi)*(v*cos(psiSigma) - v*sin(psiSigma))/(1-ySigma))
+	dtSigma=np.squeeze(CC.rho(phi)*(v*cos(psiSigma))/(CC.rho(phi)-ySigma))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
@@ -233,7 +236,7 @@ def main():
 
 	X=lambda t: 10*cos(t)-10
 	Y=lambda t: 10*sin(t)
-	tangent=lambda t: np.array([-sin(t), cos(t)])
+	tangent=lambda t: np.array([-10*sin(t), 10*cos(t)])
 
 	rho=lambda t: 10
 
@@ -245,7 +248,8 @@ def main():
 
 	X1=lambda t: R*(a - 1) - R*cos(t)*(a*cos(b*t) - 1)
 	Y1=lambda t: -R*sin(t)*(a*cos(b*t) - 1)
-	tangent1=lambda t: np.array([(R*(a*cos(b*t)*sin(t) - sin(t) + a*b*sin(b*t)*cos(t)))/(abs(R)*(- a**2*b**2*cos(b*t)**2 + a**2*b**2 + a**2*cos(b*t)**2 - 2*a*cos(b*t) + 1)**(1/2)), (R*(cos(t) - a*cos(b*t)*cos(t) + a*b*sin(b*t)*sin(t)))/(abs(R)*(- a**2*b**2*cos(b*t)**2 + a**2*b**2 + a**2*cos(b*t)**2 - 2*a*cos(b*t) + 1)**(1/2))])
+	tangent1=lambda t: np.array([R*sin(t)*(a*cos(b*t) - 1) + R*a*b*sin(b*t)*cos(t),
+ R*a*b*sin(b*t)*sin(t) - R*cos(t)*(a*cos(b*t) - 1)])
 	rho1= lambda t: (abs(R)*abs(a**2*cos(b*t)**2 - 2*a*cos(b*t) + a**2*b**2 - a**2*b**2*cos(b*t)**2 + 1)**(3/2))/abs(2*a*cos(b*t) - a**2*cos(b*t)**2 - 2*a**2*b**2 + a*b**2*cos(b*t) + a**2*b**2*cos(b*t)**2 - 1)
 
 
@@ -262,6 +266,8 @@ def main():
 	signal.signal(signal.SIGINT, exit_gracefully)
 
 	while(running):
+		start_time = time.time()
 		sendControls()
+		elapsedTime = time.time()-start_time
 if __name__=="__main__":
 	main()

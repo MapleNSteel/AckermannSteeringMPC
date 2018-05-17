@@ -4,7 +4,7 @@ function [deriv,tangent,rho] = giveMeChocolate(vec)
     syms t
     assume(t, 'real')
     deriv=simplify(diff(vec, t));
-    tangent=simplify(deriv/norm(deriv));
+    tangent=simplify(deriv);
     rho=simplify(norm(deriv)/(norm(diff(tangent, t))));
 end
 
