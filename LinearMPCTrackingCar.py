@@ -20,7 +20,7 @@ from nav_msgs.msg import Odometry
 import transforms3d
 from KalmanFilters.EKF import ExtendedKalmanFilter
 from Utilities.CurvilinearCoordinates import *
-from Controllers.LinearMPC import *
+from Controllers.LinearMPCTracking import *
 
 running=True
 elapsedTime=0
@@ -39,20 +39,26 @@ stateLength=2
 controlLength=2
 
 Q=cvxopt.matrix(np.array(np.diag([1, 1e-4])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-10, 1e-10])))#Running Cost - u
+R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-3])))#Running Cost - u
 S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
 
-N=30 #Window length
+N=10 #Window length
 T=0
 
+yeMin=-0.15
+yeMax=0.15
+
+psieMin=-pi/18
+psieMax=pi/18
+
 vMin=1.0
-vMax=-1.0
+vMax=0.5
 
 sMin=-0.6
 sMax=0.6
 
-g=cvxopt.sparse(cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d') for i in range(0,N)])
-h=cvxopt.sparse([cvxopt.matrix(np.array([[vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
+g=cvxopt.matrix(np.array([[1, 0, 0, 0], [-1, 0, 0, 0], [0, 1, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1], [0, 0, 0, -1]]), tc='d')
+h=cvxopt.sparse([cvxopt.matrix(np.array([[yeMax], [-yeMin], [psieMax], [-psieMin], [vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
 
 c=[]
 d=[]
@@ -128,7 +134,7 @@ def control(x, y, psi, beta):
 	xSigmaPrev=xSigma
 	pubySigma.publish(ySigma)
 	
-	x=np.array([ySigma, psiSigma])
+	x=np.array([ySigma, psiSigma, controlInput[0], controlInput[1]])
 	r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0]])) for i in range(0,N)])
 
 	#print(dtSigma*deltaTime)
@@ -141,15 +147,15 @@ def control(x, y, psi, beta):
 	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
 
 	fbar=f(np.array([ySigma, psiSigma]), controlInput, cc.rho(phi), psi , ds)
-	Cbar=np.array([[fbar[0][0]], [fbar[1][0]]])
+	Cbar=np.array([[fbar[0][0]], [fbar[1][0]], [0], [0]])
 
 	try:
-		Control=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar)
+		deltaControl=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar)
 	except(ArithmeticError, ValueError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
 		return np.array(controlInput)
 
-	controlInput=Control
+	controlInput=controlInput+deltaControl
 	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
 
 	return np.array(controlInput)
