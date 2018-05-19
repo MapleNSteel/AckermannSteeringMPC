@@ -66,7 +66,7 @@ def getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar
 		a=[]
 		for j in range(0,N):
 			if(j<=i):
-				a.append((cvxopt.matrix(np.linalg.matrix_power(Atilde, N-1-j))*Btilde).trans())
+				a.append((cvxopt.matrix(np.linalg.matrix_power(Atilde, i-j))*Btilde).trans())
 			else:
 				a.append(cvxopt.matrix(np.zeros(Btilde.size)).trans())
 		b.append(a)

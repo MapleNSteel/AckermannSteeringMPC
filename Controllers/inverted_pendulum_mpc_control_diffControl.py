@@ -5,7 +5,7 @@ Inverted Pendulum MPC control
 author: Atsushi Sakai
 
 """
-from LinearMPC import *
+from LinearMPCTracking import *
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,7 +29,7 @@ m = 0.3  # [kg]
 g = 9.8  # [m/s^2]
 
 Q = np.diag([0.0, 100.0, 100.0, 0.0])
-R = np.diag([0])
+R = np.diag([10])
 nx = 4   # number of state
 nu = 1   # number of input
 T = 30  # Horizon length
@@ -57,11 +57,11 @@ def main():
         A, B = get_model_matrix()
         C=np.eye(4)
         r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0], [0.0], [0.0]])) for i in range(0,T)])
-        Cbar=np.zeros((4,1))
+        Cbar=np.zeros((5,1))
 
-        Control=getControl(A, B, C, x, r, None, None, nx, nu, T, Q, R, Q, Cbar)
+        Control=getControl(A, B, C, np.array([x[0][0], x[1][0], x[2][0], x[3][0], u]), r, None, None, nx, nu, T, Q, R, Q, Cbar)
         
-        u = Control[0]
+        u = u+Control[0]
         x = simulation(x, u)
 
         if animation:

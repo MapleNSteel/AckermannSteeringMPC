@@ -39,19 +39,19 @@ stateLength=2
 controlLength=2
 
 Q=cvxopt.matrix(np.array(np.diag([1, 1e-4])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-10, 1e-10])))#Running Cost - u
+R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-3])))#Running Cost - u
 S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
 
 N=30 #Window length
 T=0
 
 vMin=1.0
-vMax=-1.0
+vMax=1.0
 
 sMin=-0.6
 sMax=0.6
 
-g=cvxopt.sparse(cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d') for i in range(0,N)])
+g=cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d')
 h=cvxopt.sparse([cvxopt.matrix(np.array([[vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
 
 c=[]
@@ -71,6 +71,7 @@ for i in range(0,N):
 g=cvxopt.sparse(c)
 
 ready=False
+
 
 def f(x, u, rho,psi, ds):
 
@@ -134,7 +135,7 @@ def control(x, y, psi, beta):
 	#print(dtSigma*deltaTime)
 	#print(deltaSigma)
 
-	ds=dtSigma*deltaTime*0.0001
+	ds=dtSigma*deltaTime
 
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	C=np.eye(stateLength)
