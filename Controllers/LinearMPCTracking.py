@@ -75,10 +75,10 @@ def getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar
 	Ahat=cvxopt.sparse([cvxopt.matrix(np.linalg.matrix_power(Atilde, i+1)) for i in range(0,N)])
 
 	#Final Matrices
-	P1=(Bhat.trans()*Qhat*Bhat+Rhat)/2
+	P1=(Bhat.trans()*Qhat*Bhat+Rhat)
 	xAdj=cvxopt.sparse([x, r, Chat])
 	F=cvxopt.sparse([[Bhat.trans()*Qhat.trans()*Ahat],[-Bhat.trans()*That.trans()], [Bhat.trans()*Qhat.trans()]])
-	q=cvxopt.matrix(F*xAdj)
+	q=(x.trans()*Ahat.trans()*Qhat*Bhat-r.trans()*That*Bhat+Chat.trans()*Qhat*Bhat).trans()
 	#print(q)
 
 	if(not (g==None or h==None)):

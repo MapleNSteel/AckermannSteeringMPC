@@ -33,16 +33,16 @@ xSigmaPrev=0
 Lr=1.2888
 Lf=1.2884
 
-controlInput=cvxopt.matrix(np.array([[0],[0]]))
+controlInput=cvxopt.matrix(np.array([[1],[0]]))
 
 stateLength=2
 controlLength=2
 
 Q=cvxopt.matrix(np.array(np.diag([1, 1e-4])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-3])))#Running Cost - u
+R=cvxopt.matrix(np.array(np.diag([1e-2, 1e-3])))#Running Cost - u
 S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
 
-N=30 #Window length
+N=10 #Window length
 T=0
 
 vMin=1.0
@@ -72,7 +72,6 @@ g=cvxopt.sparse(c)
 
 ready=False
 
-
 def f(x, u, rho,psi, ds):
 
 	v=u[0]
@@ -80,19 +79,27 @@ def f(x, u, rho,psi, ds):
 
 	return np.array([[sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))], [tan(d)/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)) - 1/rho]])*ds
 
+def jacobianC(u,rho,psi,ds):
+	
+	v=u[0]
+	d=u[1]
+
+	return np.array([[Lr/(rho*(1 - Lr**2/rho**2)**(1/2)) + (Lr*arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [1/(rho*(1 - Lr**2/rho**2)**(1/2)) - 1/rho + (arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
+
 def jacobianF(u,rho,psi, ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.eye(stateLength)+np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + v*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*ds
+	return np.eye(stateLength)+np.array([[ -Lr/(rho**2*(1 - Lr**2/rho**2)**(1/2)), -rho**2/(Lr**2 - rho**2)], [  -1/(rho**2*(1 - Lr**2/rho**2)**(1/2)),    -Lr/(Lr**2 - rho**2)]])*ds
 
 def jacobianH(u,rho,psi ,ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.array([[0, (Lr*(tan(d)**2 + 1)*(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + rho*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2)*(Lf + Lr))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])*ds
+	return np.array([[ 0, -(Lr*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [ 0,      -(Lf**2 + 2*Lr*Lf + rho**2)/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
+
 
 def exit_gracefully(signum, frame):
 
@@ -121,9 +128,9 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vMin, vMax, sMin, sMax, g, h
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vMin, vMax, sMin, sMax, g, h
 
-	cc=CC
+	cc=Schmidt
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
 	deltaSigma=xSigma-xSigmaPrev
 	xSigmaPrev=xSigma
@@ -135,13 +142,13 @@ def control(x, y, psi, beta):
 	#print(dtSigma*deltaTime)
 	#print(deltaSigma)
 
-	ds=dtSigma*deltaTime
+	ds=1e-2
 
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	C=np.eye(stateLength)
 	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
 
-	fbar=f(np.array([ySigma, psiSigma]), controlInput, cc.rho(phi), psi , ds)
+	fbar=jacobianC(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	Cbar=np.array([[fbar[0][0]], [fbar[1][0]]])
 
 	try:
@@ -170,9 +177,7 @@ def traj(x, y, v, psi, beta, CC):
 	ySigma=np.squeeze(cos(psit)*(y-yt) - sin(psit)*(x-xt))
 	psiSigma=np.squeeze(psi-psit)
 
-	v=np.sqrt(v.x**2+v.y**2)
-
-	dtSigma=np.squeeze(CC.rho(phi)*(v*cos(psiSigma))/(CC.rho(phi)-ySigma))
+	dtSigma=np.squeeze(CC.rho(phi)*((v.x*cos(psi)+v.y*sin(psi))*cos(psiSigma)+ (v.x*-sin(psi)+v.y*cos(psi))*sin(psiSigma))/(CC.rho(phi)-ySigma))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
@@ -218,7 +223,7 @@ def sendControls():
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubySigma, Jessica, CC, CC2
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubySigma, Jessica, CC, Schmidt, CC2
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -238,8 +243,8 @@ def main():
 	Jessica=CurvilinearCoordinates(X,Y,tangent,rho)
 
 	R=10
-	a=0
-	b=0
+	a=0.1
+	b=3
 
 	X1=lambda t: R*(a - 1) - R*cos(t)*(a*cos(b*t) - 1)
 	Y1=lambda t: -R*sin(t)*(a*cos(b*t) - 1)

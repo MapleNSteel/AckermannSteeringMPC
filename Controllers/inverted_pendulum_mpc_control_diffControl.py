@@ -33,7 +33,7 @@ R = np.diag([10])
 nx = 4   # number of state
 nu = 1   # number of input
 T = 30  # Horizon length
-delta_t = 0.1  # time tick
+delta_t = 0.01  # time tick
 
 animation = True
 

@@ -1,5 +1,6 @@
-syms Lr Lf v d psie ye xd yd psid psi
+syms Lr Lf v d psie ye xd yd psid psi deltaTime
 syms rho 
+syms dt
 
 % Kinematic Bicycle
 
@@ -10,6 +11,17 @@ psid=v*sin(beta)/Lr;
 
 % Spatial Reformulation
 
-ds=rho*(xd*cos(psie)-yd*sin(psie))/(rho-ye);
+ds=rho*(v*cos(beta)*cos(psie)-v*sin(beta)*sin(psie))/(rho-ye);
+dye=(v*cos(beta)*sin(psie)+v*sin(beta)*cos(psie))/ds;
 dpsie=(psid/ds) - 1/rho;
-dye=(xd*sin(psie)+yd*cos(psie))/ds;
+
+% Deriving Matrices:
+
+vec=[ye; psie];
+f=[dye; dpsie];
+
+du=atan(((Lr+Lf)/Lr)*tan(asin(Lr/rho)));
+
+A=simplify(subs(jacobian(f, [ye psie]), [ye psie d], [0 0 du]));
+B=simplify(subs(jacobian(f, [v d]), [ye psie d], [0 0 du]));
+C=simplify(subs([dye; dpsie]-B*[v; du], [ye psie d], [0 0 du]));

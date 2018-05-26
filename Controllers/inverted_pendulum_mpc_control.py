@@ -26,7 +26,7 @@ cvxopt.solvers.options['feastol'] = 1e-10
 l_bar = 2.0  # length of bar
 M = 1.0  # [kg]
 m = 0.3  # [kg]
-g = 9.8  # [m/s^2]
+g = 9.81  # [m/s^2]
 
 Q = np.diag([0.0, 100.0, 100.0, 0.0])
 R = np.diag([0])
@@ -45,7 +45,7 @@ def main():
     x0 = np.array([
         [0.0],
         [0.0],
-        [0.01],
+        [0.1],
         [0.0]
     ])
 

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from numpy import pi
-from numpy import tan,arctan,sin,cos,arctan2,sign,fmod,sqrt
+from numpy import tan,arctan,sin,arcsin,cos,arctan2,sign,fmod,sqrt
 from time import sleep
 import math
 import signal
@@ -38,11 +38,11 @@ controlInput=cvxopt.matrix(np.array([[0],[0]]))
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([1, 1e-4])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-3])))#Running Cost - u
-S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
+Q=cvxopt.matrix(np.array(np.diag([1e-1, 0])))#Running Cost - x
+R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-10])))#Running Cost - u
+S=cvxopt.matrix(np.array(np.diag([1e-1, 1e-5])))#TerMinal Cost -x
 
-N=10 #Window length
+N=50 #Window length
 T=0
 
 yeMin=-0.15
@@ -85,19 +85,26 @@ def f(x, u, rho,psi, ds):
 
 	return np.array([[sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))], [tan(d)/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)) - 1/rho]])*ds
 
+def jacobianC(u,rho,psi,ds):
+	
+	v=u[0]
+	d=u[1]
+
+	return np.array([[Lr/(rho*(1 - Lr**2/rho**2)**(1/2)) + (Lr*arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [1/(rho*(1 - Lr**2/rho**2)**(1/2)) - 1/rho + (arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
+
 def jacobianF(u,rho,psi, ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.eye(stateLength)+np.array([[-sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))), sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2/cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + v*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))],[-tan(d)/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2)), (sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(1/2))]])*ds
+	return np.eye(stateLength)+np.array([[ -Lr/(rho**2*(1 - Lr**2/rho**2)**(1/2)), -rho**2/(Lr**2 - rho**2)], [  -1/(rho**2*(1 - Lr**2/rho**2)**(1/2)),    -Lr/(Lr**2 - rho**2)]])*ds
 
 def jacobianH(u,rho,psi ,ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.array([[0, (Lr*(tan(d)**2 + 1)*(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2 + rho*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2)*(Lf + Lr))/(rho*cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lr**2*tan(d)**2 + Lf**2 + Lr**2 + 2*Lf*Lr))], [0, ((tan(d)**2 + 1)*(Lf*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*cos(psi + arctan((Lr*tan(d))/(Lf + Lr))) + Lr*sin(psi + arctan((Lr*tan(d))/(Lf + Lr)))*tan(d)))/(cos(psi + arctan((Lr*tan(d))/(Lf + Lr)))**2*(Lf + Lr)**2*((Lr**2*tan(d)**2)/(Lf + Lr)**2 + 1)**(3/2))]])*ds
+	return np.array([[ 0, -(Lr*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [ 0,      -(Lf**2 + 2*Lr*Lf + rho**2)/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
 
 def exit_gracefully(signum, frame):
 
@@ -140,13 +147,13 @@ def control(x, y, psi, beta):
 	#print(dtSigma*deltaTime)
 	#print(deltaSigma)
 
-	ds=dtSigma*deltaTime*0.0001
-
+	ds=1e-5
+	
+	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	C=np.eye(stateLength)
-	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
 
-	fbar=f(np.array([ySigma, psiSigma]), controlInput, cc.rho(phi), psi , ds)
+	fbar=jacobianC(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	Cbar=np.array([[fbar[0][0]], [fbar[1][0]], [0], [0]])
 
 	try:
@@ -175,9 +182,7 @@ def traj(x, y, v, psi, beta, CC):
 	ySigma=np.squeeze(cos(psit)*(y-yt) - sin(psit)*(x-xt))
 	psiSigma=np.squeeze(psi-psit)
 
-	v=np.sqrt(v.x**2+v.y**2)
-
-	dtSigma=np.squeeze(CC.rho(phi)*(v*cos(psiSigma))/(CC.rho(phi)-ySigma))
+	dtSigma=np.squeeze(CC.rho(phi)*((v.x*cos(psi)-v.y*sin(psi))*cos(psiSigma)+ (v.x*sin(psi)+v.y*cos(psi))*sin(psiSigma))/(CC.rho(phi)-ySigma))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
