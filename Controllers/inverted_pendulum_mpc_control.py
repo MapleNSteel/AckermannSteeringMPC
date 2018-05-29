@@ -59,7 +59,7 @@ def main():
         r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0], [0.0], [0.0]])) for i in range(0,T)])
         Cbar=np.zeros((4,1))
 
-        Control=getControl(A, B, C, x, r, None, None, nx, nu, T, Q, R, Q, Cbar)
+        Control, PredictedStates=getControl(A, B, C, x, r, None, None, nx, nu, T, Q, R, Q, Cbar)
         
         u = Control[0]
         x = simulation(x, u)

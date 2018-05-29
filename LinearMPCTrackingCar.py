@@ -38,11 +38,11 @@ controlInput=cvxopt.matrix(np.array([[0],[0]]))
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([1e-1, 0])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-3, 1e-10])))#Running Cost - u
-S=cvxopt.matrix(np.array(np.diag([1e-1, 1e-5])))#TerMinal Cost -x
+Q=cvxopt.matrix(np.array(np.diag([1e2, 1e-4])))#Running Cost - x
+R=cvxopt.matrix(np.array(np.diag([1, 1e4])))#Running Cost - u
+S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
 
-N=50 #Window length
+N=10 #Window length
 T=0
 
 yeMin=-0.15
@@ -147,7 +147,7 @@ def control(x, y, psi, beta):
 	#print(dtSigma*deltaTime)
 	#print(deltaSigma)
 
-	ds=1e-5
+	ds=1e-2
 	
 	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
@@ -156,14 +156,18 @@ def control(x, y, psi, beta):
 	fbar=jacobianC(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	Cbar=np.array([[fbar[0][0]], [fbar[1][0]], [0], [0]])
 
+	S = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
+
 	try:
-		deltaControl=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar)
+		deltaControl, predictedStates=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar)
 	except(ArithmeticError, ValueError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
-		return np.array(controlInput)
+		return np.array(controlInput[0:controlLength])
 
-	controlInput=controlInput+deltaControl
+	controlInput=controlInput+deltaControl[0:controlLength]
 	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
+	print("Frequency:"+str(1/elapsedTime))
+	print("Elapsed Time:"+str(elapsedTime))
 
 	return np.array(controlInput)
 

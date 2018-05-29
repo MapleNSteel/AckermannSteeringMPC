@@ -28,8 +28,8 @@ M = 1.0  # [kg]
 m = 0.3  # [kg]
 g = 9.8  # [m/s^2]
 
-Q = np.diag([0.0, 100.0, 100.0, 0.0])
-R = np.diag([10])
+Q = np.diag([0.0, 10.0, 10.0, 0.0])
+R = np.diag([0])
 nx = 4   # number of state
 nu = 1   # number of input
 T = 30  # Horizon length
@@ -39,13 +39,12 @@ animation = True
 
 u=0
 
-
 def main():
     global u, stateLength, controlLength, T
     x0 = np.array([
         [0.0],
         [0.0],
-        [0.01],
+        [0.1],
         [0.0]
     ])
 
@@ -61,7 +60,8 @@ def main():
 
         Control=getControl(A, B, C, np.array([x[0][0], x[1][0], x[2][0], x[3][0], u]), r, None, None, nx, nu, T, Q, R, Q, Cbar)
         
-        u = u+Control[0]
+        u = u+Control[0][0]
+        print(u)
         x = simulation(x, u)
 
         if animation:

@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy
+import scipy.linalg
 from numpy import pi
 from numpy import tan,arctan,sin,cos,arctan2,sign,fmod,sqrt
 from time import sleep
@@ -11,9 +11,6 @@ import sys
 import rospy
 import cvxopt
 cvxopt.matrix_repr = cvxopt.printing.matrix_str_default
-cvxopt.printing.options['dformat'] = '%.2f'
-cvxopt.printing.options['width'] = -1
-cvxopt.solvers.options['show_progress'] = False
 from std_msgs.msg import String, Float32, Header
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
@@ -29,6 +26,8 @@ deltaSigma=0
 
 xSigmaPrev=0
 
+maxElapsedTime=0
+minElapsedTime=1e2
 
 Lr=1.2888
 Lf=1.2884
@@ -42,7 +41,7 @@ Q=cvxopt.matrix(np.array(np.diag([1, 1e-4])))#Running Cost - x
 R=cvxopt.matrix(np.array(np.diag([1e-2, 1e-3])))#Running Cost - u
 S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
 
-N=10 #Window length
+N=5 #Window length
 T=0
 
 vMin=1.0
@@ -51,24 +50,41 @@ vMax=1.0
 sMin=-0.6
 sMax=0.6
 
-g=cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d')
-h=cvxopt.sparse([cvxopt.matrix(np.array([[vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
+yeMin=-0.1
+yeMax=0.1
+
+psieMin=-pi/3
+psieMax=pi/3
+
+g1=cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d')
+h1=cvxopt.sparse([cvxopt.matrix(np.array([[vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
+g2=cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d')
+h2=cvxopt.sparse([cvxopt.matrix(np.array([[yeMax], [-yeMin], [psieMax], [-psieMin]]), tc='d') for i in range(0,N)])
 
 c=[]
-d=[]
-
+#Sparsifying non-square matrix
 for i in range(0,N):
 	a=[]
-	b=[]
 	for j in range(0,N):
 		if(j==i):
-			a.append(g)
-			b.append(h)
+			a.append(g1)
 		else:
-			a.append(cvxopt.matrix(np.zeros(np.shape(g))))
+			a.append(cvxopt.matrix(np.zeros(np.shape(g1))))
 	c.append(a)
 
-g=cvxopt.sparse(c)
+g1=cvxopt.sparse(c)
+
+c=[]
+for i in range(0,N):
+	a=[]
+	for j in range(0,N):
+		if(j==i):
+			a.append(g2)
+		else:
+			a.append(cvxopt.matrix(np.zeros(np.shape(g2))))
+	c.append(a)
+
+g2=cvxopt.sparse(c)
 
 ready=False
 
@@ -91,17 +107,19 @@ def jacobianF(u,rho,psi, ds):
 	v=u[0]
 	d=u[1]
 
-	return np.eye(stateLength)+np.array([[ -Lr/(rho**2*(1 - Lr**2/rho**2)**(1/2)), -rho**2/(Lr**2 - rho**2)], [  -1/(rho**2*(1 - Lr**2/rho**2)**(1/2)),    -Lr/(Lr**2 - rho**2)]])*ds
+	return np.eye(stateLength)+np.array([[ -Lr/(rho**2*(1 - Lr**2/rho**2)**(1/2)), -1/(Lr**2/rho**2 - 1)], [  -1/(rho**2*(1 - Lr**2/rho**2)**(1/2)),    -Lr/(Lr**2 - rho**2)]])*ds
 
 def jacobianH(u,rho,psi ,ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.array([[ 0, -(Lr*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [ 0,      -(Lf**2 + 2*Lr*Lf + rho**2)/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
+	return np.array([[ 0, -(Lr*(Lf**2/rho**2 + 2*Lr*Lf/rho**2 + 1))/((Lr**2/rho**2 - 1)*(Lf + Lr))], [ 0,      -(Lf**2/rho**2 + 2*Lr*Lf/rho**2 + 1)/((Lr**2/rho**2 - 1)*(Lf + Lr))]])*ds
 
 
 def exit_gracefully(signum, frame):
+
+	global running, maxElapsedTime, minElapsedTime
 
 	running = False
 	
@@ -109,10 +127,11 @@ def exit_gracefully(signum, frame):
 	# restore the original signal handler as otherwise evil things will happen
 	# in raw_input when CTRL+C is pressed, and our signal handler is not re-entrant
 	signal.signal(signal.SIGINT, original_sigint)
-	sys.exit(1)
 	
 	# restore the exit gracefully handler here	
 	signal.signal(signal.SIGINT, exit_gracefully)
+
+	print(maxElapsedTime, minElapsedTime)
 
 def getAngles(position, orientation, velocity, angularVelocity):
 	angles=transforms3d.euler.quat2euler(np.array([orientation.w,orientation.x,orientation.y,orientation.z]))
@@ -128,9 +147,9 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vMin, vMax, sMin, sMax, g, h
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxElapsedTime, minElapsedTime
 
-	cc=Schmidt
+	cc=CC
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
 	deltaSigma=xSigma-xSigmaPrev
 	xSigmaPrev=xSigma
@@ -142,7 +161,7 @@ def control(x, y, psi, beta):
 	#print(dtSigma*deltaTime)
 	#print(deltaSigma)
 
-	ds=1e-2
+	ds=1e-1
 
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	C=np.eye(stateLength)
@@ -151,14 +170,25 @@ def control(x, y, psi, beta):
 	fbar=jacobianC(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	Cbar=np.array([[fbar[0][0]], [fbar[1][0]]])
 
+	S = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
+	K = np.matrix(scipy.linalg.inv(B.T*x*B+R)*(B.T*x*A))
+
 	try:
-		Control=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar)
+		Control, predictedStates=getControl(A, B, C, x, r, g1, g2, h1, h2, stateLength, controlLength, N, Q, R, S, Cbar)
 	except(ArithmeticError, ValueError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
-		return np.array(controlInput)
+		return np.array(controlInput[0:controlLength]+K*x)
 
-	controlInput=Control
+	controlInput=Control[0:controlLength]
 	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
+	print("Frequency:"+str(1/elapsedTime))
+	print("Elapsed Time:"+str(elapsedTime))
+
+	if(elapsedTime>maxElapsedTime):
+		maxElapsedTime=elapsedTime
+	
+	if(elapsedTime<minElapsedTime):
+		minElapsedTime=elapsedTime
 
 	return np.array(controlInput)
 
@@ -243,7 +273,7 @@ def main():
 	Jessica=CurvilinearCoordinates(X,Y,tangent,rho)
 
 	R=10
-	a=0.1
+	a=0.2
 	b=3
 
 	X1=lambda t: R*(a - 1) - R*cos(t)*(a*cos(b*t) - 1)
@@ -269,5 +299,7 @@ def main():
 		start_time = time.time()
 		sendControls()
 		elapsedTime = time.time()-start_time
+
+	sys.exit(1)
 if __name__=="__main__":
 	main()
