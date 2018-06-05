@@ -38,7 +38,7 @@ stateLength=2
 controlLength=2
 
 Q=cvxopt.matrix(np.array(np.diag([1, 1e-4])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-2, 1e-3])))#Running Cost - u
+R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
 S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
 
 N=5 #Window length
@@ -56,10 +56,23 @@ yeMax=0.1
 psieMin=-pi/3
 psieMax=pi/3
 
+# Robust Values; with ye, psie noise ranges - 1e-3, 1e-2
+vMinRobust=1.0
+vMaxRobust=1.0
+
+sMinRobust=-0.4531
+sMaxRobust=0.4531
+
+yeMinRobust=-0.0985
+yeMaxRobust=0.0985
+
+psieMinRobust=-0.9752
+psieMaxRobust=0.9752
+
 g1=cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d')
-h1=cvxopt.sparse([cvxopt.matrix(np.array([[vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
+h1=cvxopt.sparse([cvxopt.matrix(np.array([[vMaxRobust], [-vMinRobust], [sMaxRobust], [-sMinRobust]]), tc='d') for i in range(0,N)])
 g2=cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d')
-h2=cvxopt.sparse([cvxopt.matrix(np.array([[yeMax], [-yeMin], [psieMax], [-psieMin]]), tc='d') for i in range(0,N)])
+h2=cvxopt.sparse([cvxopt.matrix(np.array([[yeMaxRobust], [-yeMinRobust], [psieMaxRobust], [-psieMinRobust]]), tc='d') for i in range(0,N)])
 
 c=[]
 #Sparsifying non-square matrix
