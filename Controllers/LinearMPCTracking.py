@@ -1,11 +1,13 @@
 import numpy as np
 import cvxopt
+
 cvxopt.matrix_repr = cvxopt.printing.matrix_str_default
 cvxopt.printing.options['dformat'] = '%.2f'
 cvxopt.printing.options['width'] = -1
-cvxopt.solvers.options['maxiters'] = 10
-cvxopt.solvers.options['abstol'] = 1e-5
-cvxopt.solvers.options['reltol'] = 1e-5
+cvxopt.solvers.options['show_progress'] = False
+cvxopt.solvers.options['maxiters'] = 100
+cvxopt.solvers.options['abstol'] = 1e-10
+cvxopt.solvers.options['reltol'] = 1e-10
 cvxopt.solvers.options['feastol'] = 1e-10
 
 def getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar):

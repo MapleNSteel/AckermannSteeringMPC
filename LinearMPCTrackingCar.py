@@ -10,10 +10,6 @@ import time
 import sys
 import rospy
 import cvxopt
-cvxopt.matrix_repr = cvxopt.printing.matrix_str_default
-cvxopt.printing.options['dformat'] = '%.2f'
-cvxopt.printing.options['width'] = -1
-cvxopt.solvers.options['show_progress'] = False
 from std_msgs.msg import String, Float32, Header
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry

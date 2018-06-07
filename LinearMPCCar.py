@@ -34,17 +34,19 @@ Lf=1.2884
 
 controlInput=cvxopt.matrix(np.array([[1],[0]]))
 
-stateLength=2
+stateLength=3
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([1, 1e-4])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1e-4, 1e-4])))#Running Cost - u
-S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
+Q=cvxopt.matrix(np.array(np.diag([1, 1e-3, 1e-3])))#Running Cost - x
+R=cvxopt.matrix(np.array(np.diag([1e-5, 1e-5])))#Running Cost - u
+S=cvxopt.matrix(np.array(np.diag([1, 1e-5, 1e-4])))#TerMinal Cost -x
+
+K=np.zeros((stateLength, controlLength))
 
 N=5 #Window length
 T=0
 
-vMin=1.0
+vMin=-1.0
 vMax=1.0
 
 sMin=-0.6
@@ -58,20 +60,28 @@ psieMax=pi/3
 
 # Robust Values; with ye, psie noise ranges - 1e-3, 1e-2
 vMinRobust=1.0
-vMaxRobust=1.0
+vMaxRobust=2.0
 
-sMinRobust=-0.4531
-sMaxRobust=0.4531
+sMinRobust=-0.5767
+sMaxRobust=0.5767
 
-yeMinRobust=-0.0985
-yeMaxRobust=0.0985
+yeMinRobust=-0.0995
+yeMaxRobust=0.0995
 
-psieMinRobust=-0.9752
-psieMaxRobust=0.9752
+psieMinRobust=-1.0396
+psieMaxRobust=1.0396
 
-g1=cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d')
-h1=cvxopt.sparse([cvxopt.matrix(np.array([[vMaxRobust], [-vMinRobust], [sMaxRobust], [-sMinRobust]]), tc='d') for i in range(0,N)])
-g2=cvxopt.matrix(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), tc='d')
+g1=cvxopt.matrix(np.array([
+   [ 1,    0],
+   [-1,    0],
+   [ 0,    1],
+   [ 0,   -1]]), tc='d')
+h1=cvxopt.sparse([cvxopt.matrix(np.array([
+   [ 1.9984],
+   [-1.0016],
+   [ 0.5217],
+   [ 0.5217]]), tc='d') for i in range(0,N)])
+g2=cvxopt.matrix(np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]]), tc='d')
 h2=cvxopt.sparse([cvxopt.matrix(np.array([[yeMaxRobust], [-yeMinRobust], [psieMaxRobust], [-psieMinRobust]]), tc='d') for i in range(0,N)])
 
 c=[]
@@ -113,21 +123,22 @@ def jacobianC(u,rho,psi,ds):
 	v=u[0]
 	d=u[1]
 
-	return np.array([[Lr/(rho*(1 - Lr**2/rho**2)**(1/2)) + (Lr*arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [1/(rho*(1 - Lr**2/rho**2)**(1/2)) - 1/rho + (arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
+	return np.array([[Lr/(rho*(1 - Lr**2/rho**2)**(1/2)) + (Lr*arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [1/(rho*(1 - Lr**2/rho**2)**(1/2)) - 1/rho + (arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [(2*(-rho**2/(Lr**2 - rho**2))**(1/2))/v + (Lr**2*arctan((Lf + Lr)/(rho*(-(Lr**2 - rho**2)/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/(rho*v*(Lr**2 - rho**2)*(-(Lr**2 - rho**2)/rho**2)**(1/2)*(-rho**2/(Lr**2 - rho**2))**(1/2)*(Lf + Lr))
+ ]])*ds
 
 def jacobianF(u,rho,psi, ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.eye(stateLength)+np.array([[ -Lr/(rho**2*(1 - Lr**2/rho**2)**(1/2)), -1/(Lr**2/rho**2 - 1)], [  -1/(rho**2*(1 - Lr**2/rho**2)**(1/2)),    -Lr/(Lr**2 - rho**2)]])*ds
+	return np.eye(stateLength)+np.array([[ -Lr/(rho**2*(1 - Lr**2/rho**2)**(1/2)), -1/(Lr**2/rho**2 - 1), 0], [  -1/(rho**2*(1 - Lr**2/rho**2)**(1/2)),    -Lr/(Lr**2 - rho**2), 0], [-(-rho**2/(Lr**2 - rho**2))**(1/2)/(rho*v), (Lr*(-rho**2/(Lr**2 - rho**2))**(1/2))/(rho*v*(-(Lr**2 - rho**2)/rho**2)**(1/2)), 0]])*ds
 
 def jacobianH(u,rho,psi ,ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.array([[ 0, -(Lr*(Lf**2/rho**2 + 2*Lr*Lf/rho**2 + 1))/((Lr**2/rho**2 - 1)*(Lf + Lr))], [ 0,      -(Lf**2/rho**2 + 2*Lr*Lf/rho**2 + 1)/((Lr**2/rho**2 - 1)*(Lf + Lr))]])*ds
+	return np.array([[ 0, -(Lr*(Lf**2/rho**2 + 2*Lr*Lf/rho**2 + 1))/((Lr**2/rho**2 - 1)*(Lf + Lr))], [ 0,      -(Lf**2/rho**2 + 2*Lr*Lf/rho**2 + 1)/((Lr**2/rho**2 - 1)*(Lf + Lr))], [-(-rho**2/(Lr**2 - rho**2))**(1/2)/v**2, -(Lr**2*(Lf**2 + 2*Lr*Lf + rho**2))/(rho*v*(Lr**2 - rho**2)*(-(Lr**2 - rho**2)/rho**2)**(1/2)*(-rho**2/(Lr**2 - rho**2))**(1/2)*(Lf + Lr))]])*ds
 
 
 def exit_gracefully(signum, frame):
@@ -160,7 +171,7 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxElapsedTime, minElapsedTime
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, K, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxElapsedTime, minElapsedTime
 
 	cc=CC
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
@@ -168,8 +179,8 @@ def control(x, y, psi, beta):
 	xSigmaPrev=xSigma
 	pubySigma.publish(ySigma)
 	
-	x=np.array([ySigma, psiSigma])
-	r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0]])) for i in range(0,N)])
+	x=np.array([[ySigma], [psiSigma], [0]])
+	r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0], [0.0]])) for i in range(0,N)])
 
 	#print(dtSigma*deltaTime)
 	#print(deltaSigma)
@@ -181,16 +192,15 @@ def control(x, y, psi, beta):
 	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
 
 	fbar=jacobianC(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
-	Cbar=np.array([[fbar[0][0]], [fbar[1][0]]])
+	Cbar=np.array([[fbar[0][0]], [fbar[1][0]], [fbar[2][0]]])
 
-	S = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
-	K = np.matrix(scipy.linalg.inv(B.T*x*B+R)*(B.T*x*A))
-
-	try:
+	try:		
+		S = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
+		#K = np.matrix(scipy.linalg.inv(B.T*S*B+R)*(B.T*S*A))
 		Control, predictedStates=getControl(A, B, C, x, r, g1, g2, h1, h2, stateLength, controlLength, N, Q, R, S, Cbar)
-	except(ArithmeticError, ValueError):
+	except(ArithmeticError, ValueError, np.linalg.linalg.LinAlgError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
-		return np.array(controlInput[0:controlLength]+K*x)
+		return np.array(controlInput[0:controlLength])
 
 	controlInput=Control[0:controlLength]
 	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
