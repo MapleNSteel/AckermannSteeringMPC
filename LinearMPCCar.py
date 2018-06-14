@@ -20,14 +20,17 @@ from Utilities.CurvilinearCoordinates import *
 from Controllers.LinearMPC import *
 
 running=True
-elapsedTime=0
+timeDuration=0
+startTime=time.time()
+T=0
+
 deltaTime=10./1000.
 deltaSigma=0
 
 xSigmaPrev=0
 
-maxElapsedTime=0
-minElapsedTime=1e2
+maxtimeDuration=0
+mintimeDuration=1e2
 
 Lr=1.2888
 Lf=1.2884
@@ -37,14 +40,13 @@ controlInput=cvxopt.matrix(np.array([[1],[0]]))
 stateLength=3
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([1, 1e-3, 1e-3])))#Running Cost - x
+Q=cvxopt.matrix(np.array(np.diag([1, 1e-3, 1])))#Running Cost - x
 R=cvxopt.matrix(np.array(np.diag([1e-5, 1e-5])))#Running Cost - u
 S=cvxopt.matrix(np.array(np.diag([1, 1e-5, 1e-4])))#TerMinal Cost -x
 
 K=np.zeros((stateLength, controlLength))
 
 N=5 #Window length
-T=0
 
 vMin=-1.0
 vMax=1.0
@@ -59,17 +61,17 @@ psieMin=-pi/3
 psieMax=pi/3
 
 # Robust Values; with ye, psie noise ranges - 1e-3, 1e-2
-vMinRobust=1.0
-vMaxRobust=2.0
+vMinRobust=1.0019
+vMaxRobust=1.9981
 
-sMinRobust=-0.5767
-sMaxRobust=0.5767
+sMinRobust=-0.5791
+sMaxRobust=0.5791
 
 yeMinRobust=-0.0995
 yeMaxRobust=0.0995
 
-psieMinRobust=-1.0396
-psieMaxRobust=1.0396
+psieMinRobust=-1.0409
+psieMaxRobust=1.0409
 
 g1=cvxopt.matrix(np.array([
    [ 1,    0],
@@ -77,10 +79,10 @@ g1=cvxopt.matrix(np.array([
    [ 0,    1],
    [ 0,   -1]]), tc='d')
 h1=cvxopt.sparse([cvxopt.matrix(np.array([
-   [ 1.9984],
-   [-1.0016],
-   [ 0.5217],
-   [ 0.5217]]), tc='d') for i in range(0,N)])
+   [ vMaxRobust],
+   [-vMinRobust],
+   [ sMaxRobust],
+   [-sMinRobust]]), tc='d') for i in range(0,N)])
 g2=cvxopt.matrix(np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]]), tc='d')
 h2=cvxopt.sparse([cvxopt.matrix(np.array([[yeMaxRobust], [-yeMinRobust], [psieMaxRobust], [-psieMinRobust]]), tc='d') for i in range(0,N)])
 
@@ -143,7 +145,7 @@ def jacobianH(u,rho,psi ,ds):
 
 def exit_gracefully(signum, frame):
 
-	global running, maxElapsedTime, minElapsedTime
+	global running, maxtimeDuration, mintimeDuration
 
 	running = False
 	
@@ -155,7 +157,7 @@ def exit_gracefully(signum, frame):
 	# restore the exit gracefully handler here	
 	signal.signal(signal.SIGINT, exit_gracefully)
 
-	print(maxElapsedTime, minElapsedTime)
+	print(maxtimeDuration, mintimeDuration)
 
 def getAngles(position, orientation, velocity, angularVelocity):
 	angles=transforms3d.euler.quat2euler(np.array([orientation.w,orientation.x,orientation.y,orientation.z]))
@@ -171,7 +173,7 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, K, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxElapsedTime, minElapsedTime
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, timeDuration, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, K, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxtimeDuration, mintimeDuration
 
 	cc=CC
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
@@ -204,14 +206,15 @@ def control(x, y, psi, beta):
 
 	controlInput=Control[0:controlLength]
 	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
-	print("Frequency:"+str(1/elapsedTime))
-	print("Elapsed Time:"+str(elapsedTime))
+	print("Frequency:"+str(1/timeDuration))
+	print("Time Duration:"+str(timeDuration))
+	print("Elapsed Time:"+str(time.time()-startTime))
 
-	if(elapsedTime>maxElapsedTime):
-		maxElapsedTime=elapsedTime
+	if(timeDuration>maxtimeDuration):
+		maxtimeDuration=timeDuration
 	
-	if(elapsedTime<minElapsedTime):
-		minElapsedTime=elapsedTime
+	if(timeDuration<mintimeDuration):
+		mintimeDuration=timeDuration
 
 	return np.array(controlInput)
 
@@ -236,9 +239,9 @@ def traj(x, y, v, psi, beta, CC):
 
 def callbackOdom(msg):
 
-	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, elapsedTime, ready
+	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, timeDuration, ready
 
-	elapsedTime+=deltaTime
+	timeDuration+=deltaTime
 	Pose=msg.pose.pose
 	Twist=msg.twist.twist
 
@@ -258,7 +261,7 @@ def callbackOdom(msg):
 
 def sendControls():
 	
-	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, elapsedTime
+	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, timeDuration
 
 	if(ready):
 
@@ -266,6 +269,11 @@ def sendControls():
 
 		controlInput=control(position.x,position.y,psi,psi-theta)
 		controlInput[1]=np.arctan2(sin(controlInput[1]), cos(controlInput[1]))
+
+		if(controlInput[1]>sMaxRobust):
+			controlInput[1]=sMaxRobust
+		elif(controlInput[1]<sMinRobust):
+			controlInput[1]=sMinRobust
 
 		print(controlInput)
 
@@ -276,7 +284,7 @@ def sendControls():
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubySigma, Jessica, CC, Schmidt, CC2
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, timeDuration, startTime, pubThrottle, pubSteering, pubySigma, Jessica, CC, Schmidt, CC2
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -321,7 +329,7 @@ def main():
 	while(running):
 		start_time = time.time()
 		sendControls()
-		elapsedTime = time.time()-start_time
+		timeDuration = time.time()-start_time
 
 	sys.exit(1)
 if __name__=="__main__":
