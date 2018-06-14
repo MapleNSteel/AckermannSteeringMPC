@@ -61,7 +61,7 @@ psieMin=-pi/3
 psieMax=pi/3
 
 # Robust Values; with ye, psie noise ranges - 1e-3, 1e-2
-vMinRobust=1.0019
+vMinRobust=-1.9981
 vMaxRobust=1.9981
 
 sMinRobust=-0.5791
@@ -233,19 +233,21 @@ def control(x, y, psi, beta):
 def traj(x, y, v, psi, beta, CC):
 	
 	CC.setCoordinates(x,y)
-	phi=np.squeeze(CC.getCoordinates())+0.01
+	phi=np.squeeze(CC.getCoordinates())
 
-	xt=np.squeeze(CC.X(phi))
-	yt=np.squeeze(CC.Y(phi))
-	tangent=CC.tangent(phi)/np.linalg.norm(CC.tangent(phi))
+	phiTarget=phi+0.01
+
+	xt=np.squeeze(CC.X(phiTarget))
+	yt=np.squeeze(CC.Y(phiTarget))
+	tangent=CC.tangent(phiTarget)/np.linalg.norm(CC.tangent(phiTarget))
 	psit=np.squeeze(arctan2(tangent[1], tangent[0]))
 	normal=np.squeeze(np.array([tangent[1],-tangent[0]]))
 
-	xSigma=np.squeeze(scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0])
+	xSigma=np.squeeze(scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phiTarget)[0])
 	ySigma=np.squeeze(cos(psit)*(y-yt) - sin(psit)*(x-xt))
 	psiSigma=np.squeeze(psi-psit)
 
-	dtSigma=np.squeeze(CC.rho(phi)*((v.x*cos(psi)+v.y*sin(psi))*cos(psiSigma)+ (v.x*-sin(psi)+v.y*cos(psi))*sin(psiSigma))/(CC.rho(phi)-ySigma))
+	dtSigma=np.squeeze(CC.rho(phiTarget)*((v.x*cos(psi)+v.y*sin(psi))*cos(psiSigma)+ (v.x*-sin(psi)+v.y*cos(psi))*sin(psiSigma))/(CC.rho(phiTarget)-ySigma))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
