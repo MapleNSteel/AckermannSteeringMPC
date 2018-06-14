@@ -65,30 +65,26 @@ psieMin=-pi/3
 psieMax=pi/3
 
 # Robust Values; with ye, psie noise ranges - 1e-3, 1e-2
-<<<<<<< HEAD
 vMinRobust=1.0019
 vMaxRobust=1.9981
 
 sMinRobust=-0.5791
 sMaxRobust=0.5791
-=======
+
 vMinRobust=1.0
 vMaxRobust=2.0
 
 sMinRobust=-0.5767
 sMaxRobust=0.5767
->>>>>>> 8d94c0442f34af4a66b86ab4e04dd1f76759ad75
 
 yeMinRobust=-0.0995
 yeMaxRobust=0.0995
 
-<<<<<<< HEAD
 psieMinRobust=-1.0409
 psieMaxRobust=1.0409
-=======
+
 psieMinRobust=-1.0396
 psieMaxRobust=1.0396
->>>>>>> 8d94c0442f34af4a66b86ab4e04dd1f76759ad75
 
 g1=cvxopt.matrix(np.array([
    [ 1,    0],
@@ -96,17 +92,11 @@ g1=cvxopt.matrix(np.array([
    [ 0,    1],
    [ 0,   -1]]), tc='d')
 h1=cvxopt.sparse([cvxopt.matrix(np.array([
-<<<<<<< HEAD
    [ vMaxRobust],
    [-vMinRobust],
    [ sMaxRobust],
    [-sMinRobust]]), tc='d') for i in range(0,N)])
-=======
-   [ 1.9984],
-   [-1.0016],
-   [ 0.5217],
-   [ 0.5217]]), tc='d') for i in range(0,N)])
->>>>>>> 8d94c0442f34af4a66b86ab4e04dd1f76759ad75
+
 g2=cvxopt.matrix(np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]]), tc='d')
 h2=cvxopt.sparse([cvxopt.matrix(np.array([[yeMaxRobust], [-yeMinRobust], [psieMaxRobust], [-psieMinRobust]]), tc='d') for i in range(0,N)])
 
@@ -197,11 +187,9 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-<<<<<<< HEAD
 	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, timeDuration, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, K, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxtimeDuration, mintimeDuration
-=======
+
 	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, K, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxElapsedTime, minElapsedTime
->>>>>>> 8d94c0442f34af4a66b86ab4e04dd1f76759ad75
 
 	cc=CC
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
