@@ -40,11 +40,7 @@ controlInput=cvxopt.matrix(np.array([[1],[0]]))
 stateLength=3
 controlLength=2
 
-<<<<<<< HEAD
 Q=cvxopt.matrix(np.array(np.diag([1, 1e-3, 1])))#Running Cost - x
-=======
-Q=cvxopt.matrix(np.array(np.diag([1, 1e-3, 1e-3])))#Running Cost - x
->>>>>>> 8d94c0442f34af4a66b86ab4e04dd1f76759ad75
 R=cvxopt.matrix(np.array(np.diag([1e-5, 1e-5])))#Running Cost - u
 S=cvxopt.matrix(np.array(np.diag([1, 1e-5, 1e-4])))#TerMinal Cost -x
 
