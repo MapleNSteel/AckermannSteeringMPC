@@ -221,7 +221,7 @@ def control(x, y, psi, beta):
 def traj(x, y, v, psi, beta, CC):
 	
 	CC.setCoordinates(x,y)
-	phi=np.squeeze(CC.getCoordinates()) 
+	phi=np.squeeze(CC.getCoordinates())+0.01
 
 	xt=np.squeeze(CC.X(phi))
 	yt=np.squeeze(CC.Y(phi))
