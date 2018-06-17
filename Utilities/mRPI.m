@@ -22,7 +22,7 @@ As=A2-B2*K;
 
 W=Polyhedron('A', [1 0 0; -1 0 0; 0 1 0; 0 -1 0; 0 0 1; 0 0 -1], 'b', [0.00401; 0.00401; 0.015; 0.015; 0.0; 0.0]);
 temp=W;
-for k=1:3
+for k=1:5
     temp=W+As*temp;
 end
 figure; temp.plot();
@@ -48,7 +48,6 @@ U=Polyhedron('A', [1 0; -1 0; 0 1; 0 -1], 'b', [vMax; -vMin; sMax; -sMin]);
 X=Polyhedron('A', [1 0 0; -1 0 0; 0 1 0; 0 -1 0; 0 0 1; 0 0 -1], 'b', [yeMax; -yeMin; psieMax; -psieMin; tMin; tMax]);
 
 Ub=U-(-K*(Z));
-Ub=U-(-K*(X+Z));
 Xb=X-Z;
 
 figure;
