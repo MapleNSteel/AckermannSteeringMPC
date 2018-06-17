@@ -62,16 +62,16 @@ psieMax=pi/3
 
 # Robust Values; with ye, psie noise ranges - 1e-3, 1e-2
 vMinRobust=1.0019
-vMaxRobust=1.9981
+vMaxRobust=1.9811
 
 sMinRobust=-0.5791
 sMaxRobust=0.5791
 
-yeMinRobust=-0.0995
-yeMaxRobust=0.0995
+yeMinRobust=-0.2468
+yeMaxRobust=0.2468
 
-psieMinRobust=-1.0409
-psieMaxRobust=1.0409
+psieMinRobust=-0.5396
+psieMaxRobust=0.5396
 
 g1=cvxopt.matrix(np.array([
    [ 1,    0],
@@ -198,13 +198,13 @@ def control(x, y, psi, beta):
 
 	try:		
 		S = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
-		#K = np.matrix(scipy.linalg.inv(B.T*S*B+R)*(B.T*S*A))
+		K = np.matrix(np.linalg.inv(B.T*S*B+R)*(B.T*S*A))
 		Control, predictedStates=getControl(A, B, C, x, r, g1, g2, h1, h2, stateLength, controlLength, N, Q, R, S, Cbar)
 	except(ArithmeticError, ValueError, np.linalg.linalg.LinAlgError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
-		return np.array(controlInput[0:controlLength])
+		return np.array(controlInput[0:controlLength])-K*x
 
-	controlInput=Control[0:controlLength]
+	controlInput=Control[0:controlLength]-K*x
 	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
 	print("Frequency:"+str(1/timeDuration))
 	print("Time Duration:"+str(timeDuration))

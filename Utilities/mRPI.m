@@ -16,7 +16,7 @@ display(e);
 
 As=A2-B2*K;
 
-W=Polyhedron('A', [1 0 0; -1 0 0; 0 1 0; 0 -1 0; 0 0 1; 0 0 -1], 'b', [0.00401; 0.00401; 0.015; 0.015; 0.0; 0.0]);
+W=Polyhedron('A', [1 0 0; -1 0 0; 0 1 0; 0 -1 0; 0 0 1; 0 0 -1], 'b', [0.2; 0.2; 0.015; 0.015; 0.0; 0.0]);
 temp=W;
 for k=1:3
     temp=W+As*temp;
@@ -25,13 +25,13 @@ figure; temp.plot();
 Z=temp;
 
 vMin=1.0;
-vMax=13.0;
+vMax=2.0;
 
 sMin=-0.6;
 sMax=0.6;
 
-yeMin=-0.1;
-yeMax=0.1;
+yeMin=-0.5;
+yeMax=0.5;
 
 psieMin=-pi/3;
 psieMax=pi/3;
