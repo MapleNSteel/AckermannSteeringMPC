@@ -61,17 +61,17 @@ psieMin=-pi/3
 psieMax=pi/3
 
 # Robust Values; with ye, psie noise ranges - 1e-3, 1e-2
-vMinRobust=-1.9997
-vMaxRobust=1.9997
+vMinRobust=1.0019
+vMaxRobust=1.9981
 
-sMinRobust=-0.3449
-sMaxRobust=0.3449
+sMinRobust=-0.5791
+sMaxRobust=0.5791
 
-yeMinRobust=-0.0947
-yeMaxRobust=0.0947
+yeMinRobust=-0.0995
+yeMaxRobust=0.0995
 
-psieMinRobust=-0.9591
-psieMaxRobust=0.9591
+psieMinRobust=-1.0409
+psieMaxRobust=1.0409
 
 g1=cvxopt.matrix(np.array([
    [ 1,    0],
@@ -83,7 +83,6 @@ h1=cvxopt.sparse([cvxopt.matrix(np.array([
    [-vMinRobust],
    [ sMaxRobust],
    [-sMinRobust]]), tc='d') for i in range(0,N)])
-
 g2=cvxopt.matrix(np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]]), tc='d')
 h2=cvxopt.sparse([cvxopt.matrix(np.array([[yeMaxRobust], [-yeMinRobust], [psieMaxRobust], [-psieMinRobust]]), tc='d') for i in range(0,N)])
 
@@ -176,8 +175,6 @@ def control(x, y, psi, beta):
 
 	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, timeDuration, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, K, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxtimeDuration, mintimeDuration
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, K, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxElapsedTime, minElapsedTime
-
 	cc=CC
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
 	deltaSigma=xSigma-xSigmaPrev
@@ -201,13 +198,13 @@ def control(x, y, psi, beta):
 
 	try:		
 		S = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
-		K = np.matrix(np.linalg.inv(B.T*S*B+R)*(B.T*S*A))
+		#K = np.matrix(scipy.linalg.inv(B.T*S*B+R)*(B.T*S*A))
 		Control, predictedStates=getControl(A, B, C, x, r, g1, g2, h1, h2, stateLength, controlLength, N, Q, R, S, Cbar)
 	except(ArithmeticError, ValueError, np.linalg.linalg.LinAlgError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
-		return np.array(controlInput[0:controlLength])-np.dot(K, x)
+		return np.array(controlInput[0:controlLength])
 
-	controlInput=Control[0:controlLength]-np.dot(K, x)
+	controlInput=Control[0:controlLength]
 	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
 	print("Frequency:"+str(1/timeDuration))
 	print("Time Duration:"+str(timeDuration))
@@ -224,21 +221,19 @@ def control(x, y, psi, beta):
 def traj(x, y, v, psi, beta, CC):
 	
 	CC.setCoordinates(x,y)
-	phi=np.squeeze(CC.getCoordinates())
+	phi=np.squeeze(CC.getCoordinates())+0.01
 
-	phiTarget=phi+0.05
-
-	xt=np.squeeze(CC.X(phiTarget))
-	yt=np.squeeze(CC.Y(phiTarget))
-	tangent=CC.tangent(phiTarget)/np.linalg.norm(CC.tangent(phiTarget))
+	xt=np.squeeze(CC.X(phi))
+	yt=np.squeeze(CC.Y(phi))
+	tangent=CC.tangent(phi)/np.linalg.norm(CC.tangent(phi))
 	psit=np.squeeze(arctan2(tangent[1], tangent[0]))
 	normal=np.squeeze(np.array([tangent[1],-tangent[0]]))
 
-	xSigma=np.squeeze(scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phiTarget)[0])
+	xSigma=np.squeeze(scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0])
 	ySigma=np.squeeze(cos(psit)*(y-yt) - sin(psit)*(x-xt))
 	psiSigma=np.squeeze(psi-psit)
 
-	dtSigma=np.squeeze(CC.rho(phiTarget)*((v.x*cos(psi)+v.y*sin(psi))*cos(psiSigma)+ (v.x*-sin(psi)+v.y*cos(psi))*sin(psiSigma))/(CC.rho(phiTarget)-ySigma))
+	dtSigma=np.squeeze(CC.rho(phi)*((v.x*cos(psi)+v.y*sin(psi))*cos(psiSigma)+ (v.x*-sin(psi)+v.y*cos(psi))*sin(psiSigma))/(CC.rho(phi)-ySigma))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
