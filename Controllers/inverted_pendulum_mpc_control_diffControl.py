@@ -14,13 +14,6 @@ import time
 import cvxpy
 
 cvxopt.matrix_repr = cvxopt.printing.matrix_str_default
-cvxopt.printing.options['dformat'] = '%.2f'
-cvxopt.printing.options['width'] = -1
-cvxopt.solvers.options['show_progress'] = True
-cvxopt.solvers.options['maxiters'] = 50
-cvxopt.solvers.options['abstol'] = 1e-10
-cvxopt.solvers.options['reltol'] = 1e-10
-cvxopt.solvers.options['feastol'] = 1e-10
 
 
 l_bar = 2.0  # length of bar
@@ -28,12 +21,12 @@ M = 1.0  # [kg]
 m = 0.3  # [kg]
 g = 9.8  # [m/s^2]
 
-Q = np.diag([0.0, 10.0, 10.0, 0.0])
+Q = np.diag([1.0, 10.0, 10.0, 0.0])
 R = np.diag([0])
 nx = 4   # number of state
 nu = 1   # number of input
 T = 30  # Horizon length
-delta_t = 0.01  # time tick
+delta_t = 0.1  # time tick
 
 animation = True
 
@@ -44,7 +37,7 @@ def main():
     x0 = np.array([
         [0.0],
         [0.0],
-        [0.1],
+        [0.5],
         [0.0]
     ])
 
@@ -58,7 +51,7 @@ def main():
         r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0], [0.0], [0.0]])) for i in range(0,T)])
         Cbar=np.zeros((5,1))
 
-        Control=getControl(A, B, C, np.array([x[0][0], x[1][0], x[2][0], x[3][0], u]), r, None, None, nx, nu, T, Q, R, Q, Cbar)
+        Control=getControl(A, B, C, np.array([x[0][0], x[1][0], x[2][0], x[3][0], u]), r, None, None, None, None, nx, nu, T, Q, R, Q, Cbar)
         
         u = u+Control[0][0]
         print(u)

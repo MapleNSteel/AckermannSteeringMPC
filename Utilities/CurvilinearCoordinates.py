@@ -2,6 +2,7 @@ import time
 import matplotlib.pyplot as plt
 import math
 from numpy import sin, cos, pi
+import numpy as np
 from scipy.optimize import minimize
 
 class CurvilinearCoordinates:
@@ -15,19 +16,24 @@ class CurvilinearCoordinates:
 		self.x=0
 		self.y=0
 		self.theta=0
+		self.cost=0
 
 	def J(self,t):
 		
 		J=((self.X(t)-self.x)**2)+((self.Y(t)-self.y)**2)
 		return J
+	
+	def jacobian(self, t):
+		
+		return self.tangent(t)[0]*2*(self.X(t)-self.x)+self.tangent(t)[1]*2*(self.Y(t)-self.y)
 
 	def setCoordinates(self,x,y):
 		self.x=x
 		self.y=y
 
 	def getCoordinates(self):
-		self.theta = minimize(self.J, self.theta, method='nelder-mead', options={'xtol': 1e-4}).x
-		return self.theta
+		self.theta = minimize(self.J, self.theta, jac=self.jacobian, method="Newton-CG").x
+		return self.theta, self.J(self.theta), self.jacobian(self.theta)
 
 def main():
 	X=lambda t: 10*(1+0.2*cos(8*t))*cos(t)

@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy
+import scipy.linalg
 from numpy import pi
-from numpy import tan,arctan,sin,arcsin,cos,arctan2,sign,fmod,sqrt
+from numpy import tan,arctan,sin,cos,arctan2,sign,fmod,sqrt
 from time import sleep
 import math
 import signal
@@ -10,6 +10,7 @@ import time
 import sys
 import rospy
 import cvxopt
+cvxopt.matrix_repr = cvxopt.printing.matrix_str_default
 from std_msgs.msg import String, Float32, Header
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
@@ -19,58 +20,104 @@ from Utilities.CurvilinearCoordinates import *
 from Controllers.LinearMPCTracking import *
 
 running=True
-elapsedTime=0
+timeDuration=0
+startTime=time.time()
+T=0
+
 deltaTime=10./1000.
 deltaSigma=0
 
 xSigmaPrev=0
 
+maxtimeDuration=0
+mintimeDuration=1e2
 
 Lr=1.2888
 Lf=1.2884
 
-controlInput=cvxopt.matrix(np.array([[0],[0]]))
+controlInput=cvxopt.matrix(np.array([[1],[0]]))
 
 stateLength=2
 controlLength=2
 
-Q=cvxopt.matrix(np.array(np.diag([1e2, 1e-4])))#Running Cost - x
-R=cvxopt.matrix(np.array(np.diag([1, 1e4])))#Running Cost - u
+Q=cvxopt.matrix(np.array(np.diag([1, 1e-3])))#Running Cost - x
+R=cvxopt.matrix(np.array(np.diag([1e-5, 1e-5])))#Running Cost - u
 S=cvxopt.matrix(np.array(np.diag([1, 1e-5])))#TerMinal Cost -x
 
+K=np.zeros((stateLength, controlLength))
+
 N=10 #Window length
-T=0
 
-yeMin=-0.15
-yeMax=0.15
-
-psieMin=-pi/18
-psieMax=pi/18
-
-vMin=1.0
-vMax=0.5
+vMin=-1.0
+vMax=1.0
 
 sMin=-0.6
 sMax=0.6
 
-g=cvxopt.matrix(np.array([[1, 0, 0, 0], [-1, 0, 0, 0], [0, 1, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1], [0, 0, 0, -1]]), tc='d')
-h=cvxopt.sparse([cvxopt.matrix(np.array([[yeMax], [-yeMin], [psieMax], [-psieMin], [vMax], [-vMin], [sMax], [-sMin]]), tc='d') for i in range(0,N)])
+yeMin=-0.1
+yeMax=0.1
+
+psieMin=-pi/3
+psieMax=pi/3
+
+# Robust Values; with ye, psie noise ranges - 1e-3, 1e-2
+vMinRobust=1.0019
+vMaxRobust=1.9811
+
+sMinRobust=-0.5791
+sMaxRobust=0.5791
+
+yeMinRobust=-0.2468
+yeMaxRobust=0.2468
+
+psieMinRobust=-0.5396
+psieMaxRobust=0.5396
+
+g1=cvxopt.matrix(np.array([
+   [ 1,    0],
+   [-1,    0],
+   [ 0,    1],
+   [ 0,   -1]]), tc='d')
+h1=cvxopt.sparse([cvxopt.matrix(np.array([
+   [ 0.5],
+   [-0.5],
+   [ 0.7],
+   [-0.7]]), tc='d') for i in range(0,N)])
+g2=cvxopt.matrix(np.array([[1, 0, 0, 0], [-1, 0, 0, 0], [0, 1, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1], [0, 0, 0, -1]]), tc='d')
+h2=cvxopt.sparse([cvxopt.matrix(np.array([
+   [yeMaxRobust], 
+   [-yeMinRobust], 
+   [psieMaxRobust], 
+   [-psieMinRobust], 
+   [ vMaxRobust],
+   [-vMinRobust],
+   [ sMaxRobust],
+   [-sMinRobust]]), tc='d') for i in range(0,N)])
 
 c=[]
-d=[]
-
+#Sparsifying non-square matrix
 for i in range(0,N):
 	a=[]
-	b=[]
 	for j in range(0,N):
 		if(j==i):
-			a.append(g)
-			b.append(h)
+			a.append(g1)
 		else:
-			a.append(cvxopt.matrix(np.zeros(np.shape(g))))
+			a.append(cvxopt.matrix(np.zeros(np.shape(g1))))
 	c.append(a)
 
-g=cvxopt.sparse(c)
+g1=cvxopt.sparse(c)
+
+c=[]
+for i in range(0,N):
+	a=[]
+	for j in range(0,N):
+		if(j==i):
+			a.append(g2)
+		else:
+			a.append(cvxopt.matrix(np.zeros(np.shape(g2))))
+	c.append(a)
+
+g2=cvxopt.sparse(c)
 
 ready=False
 
@@ -86,23 +133,31 @@ def jacobianC(u,rho,psi,ds):
 	v=u[0]
 	d=u[1]
 
-	return np.array([[Lr/(rho*(1 - Lr**2/rho**2)**(1/2)) + (Lr*arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [1/(rho*(1 - Lr**2/rho**2)**(1/2)) - 1/rho + (arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
+	return np.array(
+	[[Lr/(rho*(1 - Lr**2/rho**2)**(1/2)) + (Lr*arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))],
+	[1/(rho*(1 - Lr**2/rho**2)**(1/2)) - 1/rho + (arctan((Lf + Lr)/(rho*(1 - Lr**2/rho**2)**(1/2)))*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
 
 def jacobianF(u,rho,psi, ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.eye(stateLength)+np.array([[ -Lr/(rho**2*(1 - Lr**2/rho**2)**(1/2)), -rho**2/(Lr**2 - rho**2)], [  -1/(rho**2*(1 - Lr**2/rho**2)**(1/2)),    -Lr/(Lr**2 - rho**2)]])*ds
+	return np.eye(stateLength)+np.array(
+[[ -Lr/(rho**2*(1 - Lr**2/rho**2)**(1/2)), -rho**2/(Lr**2 - rho**2)], 
+ [-1/(rho**2*(1 - Lr**2/rho**2)**(1/2))  ,    -Lr/(Lr**2 - rho**2)]])*ds
 
 def jacobianH(u,rho,psi ,ds):
 
 	v=u[0]
 	d=u[1]
 
-	return np.array([[ 0, -(Lr*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))], [ 0,      -(Lf**2 + 2*Lr*Lf + rho**2)/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
+	return np.array([[ 0, -(Lr*(Lf**2 + 2*Lr*Lf + rho**2))/((Lr**2 - rho**2)*(Lf + Lr))],
+			[ 0,      -(Lf**2 + 2*Lr*Lf + rho**2)/((Lr**2 - rho**2)*(Lf + Lr))]])*ds
+
 
 def exit_gracefully(signum, frame):
+
+	global running, maxtimeDuration, mintimeDuration
 
 	running = False
 	
@@ -110,10 +165,11 @@ def exit_gracefully(signum, frame):
 	# restore the original signal handler as otherwise evil things will happen
 	# in raw_input when CTRL+C is pressed, and our signal handler is not re-entrant
 	signal.signal(signal.SIGINT, original_sigint)
-	sys.exit(1)
 	
 	# restore the exit gracefully handler here	
 	signal.signal(signal.SIGINT, exit_gracefully)
+
+	print(maxtimeDuration, mintimeDuration)
 
 def getAngles(position, orientation, velocity, angularVelocity):
 	angles=transforms3d.euler.quat2euler(np.array([orientation.w,orientation.x,orientation.y,orientation.z]))
@@ -129,7 +185,7 @@ def getAngles(position, orientation, velocity, angularVelocity):
 
 def control(x, y, psi, beta):
 
-	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, CC2, xSigmaPrev, elapsedTime, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, Q, R, S, vMin, vMax, sMin, sMax, g, h
+	global startTime, velocity, accum, ySigmaPrev, Kp, Ki, Kd, pubySigma, Jessica, CC, Schmidt, CC2, xSigmaPrev, timeDuration, controlInput, deltaSigma, N, stateLength, controlLength, Lf, Lr, T, K, Q, R, S, vMin, vMax, sMin, sMax, g, h, maxtimeDuration, mintimeDuration
 
 	cc=CC
 	[phi, xSigma, ySigma, psiSigma, dtSigma]=traj(x, y, velocity, psi, beta, cc)
@@ -137,40 +193,48 @@ def control(x, y, psi, beta):
 	xSigmaPrev=xSigma
 	pubySigma.publish(ySigma)
 	
-	x=np.array([ySigma, psiSigma, controlInput[0], controlInput[1]])
+	x=np.array([[ySigma], [psiSigma], [controlInput[0]], [controlInput[1]]])
 	r=cvxopt.sparse([cvxopt.matrix(np.array([[0.0], [0.0]])) for i in range(0,N)])
 
 	#print(dtSigma*deltaTime)
 	#print(deltaSigma)
 
-	ds=1e-2
-	
-	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
+	ds=1e-1
+
 	B=jacobianH(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	C=np.eye(stateLength)
+	A=jacobianF(cvxopt.matrix(controlInput), cc.rho(phi), psi, ds)
 
 	fbar=jacobianC(cvxopt.matrix(controlInput), cc.rho(phi), psi , ds)
 	Cbar=np.array([[fbar[0][0]], [fbar[1][0]], [0], [0]])
 
-	S = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
-
-	try:
-		deltaControl, predictedStates=getControl(A, B, C, x, r, g, h, stateLength, controlLength, N, Q, R, S, Cbar)
-	except(ArithmeticError, ValueError):
+	try:		
+		S = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
+		K = np.matrix(np.linalg.inv(B.T*S*B+R)*(B.T*S*A))
+		Control, predictedStates=getControl(A, B, C, x, r, g1, g2, h1, h2, stateLength, controlLength, N, Q, R, S, Cbar)
+	except(ArithmeticError, ValueError, np.linalg.linalg.LinAlgError):
 		print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
-		return np.array(controlInput[0:controlLength])
-
-	controlInput=controlInput+deltaControl[0:controlLength]
+		x=np.array([[ySigma], [psiSigma], [0]])
+		return controlInput+np.array(controlInput[0:controlLength])
+	x=np.array([[ySigma], [psiSigma], [0]])
+	controlInput=controlInput+Control[0:controlLength]
 	print("phi:"+str(phi)+"    xSigma:"+str(xSigma)+"    ySigma:"+str(ySigma)+"    psiSigma:"+str(psiSigma))
-	print("Frequency:"+str(1/elapsedTime))
-	print("Elapsed Time:"+str(elapsedTime))
+	print("Frequency:"+str(1/timeDuration))
+	print("Time Duration:"+str(timeDuration))
+	print("Elapsed Time:"+str(time.time()-startTime))
+
+	if(timeDuration>maxtimeDuration):
+		maxtimeDuration=timeDuration
+	
+	if(timeDuration<mintimeDuration):
+		mintimeDuration=timeDuration
 
 	return np.array(controlInput)
 
 def traj(x, y, v, psi, beta, CC):
 	
 	CC.setCoordinates(x,y)
-	phi=np.squeeze(CC.getCoordinates()) 
+	phi, cost, jac=np.squeeze(CC.getCoordinates())+0.01
 
 	xt=np.squeeze(CC.X(phi))
 	yt=np.squeeze(CC.Y(phi))
@@ -180,17 +244,17 @@ def traj(x, y, v, psi, beta, CC):
 
 	xSigma=np.squeeze(scipy.integrate.quad(lambda x: np.sqrt(CC.tangent(x)[0]**2+CC.tangent(x)[1]**2), 0, phi)[0])
 	ySigma=np.squeeze(cos(psit)*(y-yt) - sin(psit)*(x-xt))
-	psiSigma=np.squeeze(psi-psit)
+	psiSigma=np.arctan2(np.sin(np.squeeze(psi-psit)), np.cos(np.squeeze(psi-psit)))
 
-	dtSigma=np.squeeze(CC.rho(phi)*((v.x*cos(psi)-v.y*sin(psi))*cos(psiSigma)+ (v.x*sin(psi)+v.y*cos(psi))*sin(psiSigma))/(CC.rho(phi)-ySigma))
+	dtSigma=np.squeeze(CC.rho(phi)*((v.x*cos(psi)+v.y*sin(psi))*cos(psiSigma)+ (v.x*-sin(psi)+v.y*cos(psi))*sin(psiSigma))/(CC.rho(phi)-ySigma))
 
 	return [phi, xSigma, ySigma, psiSigma, dtSigma]		
 
 def callbackOdom(msg):
 
-	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, elapsedTime, ready
+	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, timeDuration, ready
 
-	elapsedTime+=deltaTime
+	timeDuration+=deltaTime
 	Pose=msg.pose.pose
 	Twist=msg.twist.twist
 
@@ -210,7 +274,7 @@ def callbackOdom(msg):
 
 def sendControls():
 	
-	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, elapsedTime
+	global pubThrottle, pubSteering, position, velocity, orientation, angularVelocity, timeDuration
 
 	if(ready):
 
@@ -218,6 +282,11 @@ def sendControls():
 
 		controlInput=control(position.x,position.y,psi,psi-theta)
 		controlInput[1]=np.arctan2(sin(controlInput[1]), cos(controlInput[1]))
+
+		if(controlInput[1]>sMaxRobust):
+			controlInput[1]=sMaxRobust
+		elif(controlInput[1]<sMinRobust):
+			controlInput[1]=sMinRobust
 
 		print(controlInput)
 
@@ -228,7 +297,7 @@ def sendControls():
 
 def main():
 
-	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, elapsedTime, startTime, pubThrottle, pubSteering, pubySigma, Jessica, CC, CC2
+	global clientID, joint_names, throttle_joint, joint_handles, throttle_handles, body_handle, pubOdom, Pose, EKF, timeDuration, startTime, pubThrottle, pubSteering, pubySigma, Jessica, CC, Schmidt, CC2
 	
 	rospy.init_node('Data')
 	startTime=time.time()
@@ -248,8 +317,8 @@ def main():
 	Jessica=CurvilinearCoordinates(X,Y,tangent,rho)
 
 	R=10
-	a=0
-	b=0
+	a=0.2
+	b=3
 
 	X1=lambda t: R*(a - 1) - R*cos(t)*(a*cos(b*t) - 1)
 	Y1=lambda t: -R*sin(t)*(a*cos(b*t) - 1)
@@ -273,6 +342,8 @@ def main():
 	while(running):
 		start_time = time.time()
 		sendControls()
-		elapsedTime = time.time()-start_time
+		timeDuration = time.time()-start_time
+
+	sys.exit(1)
 if __name__=="__main__":
 	main()

@@ -141,20 +141,20 @@ def setVehicleState(desiredSteeringAngle, desiredSpeed):
 
 	vrep.simxSetJointTargetVelocity(clientID,
 		joint_handles[0],
-		desiredSpeed, # force to apply
+		desiredSpeed/r, # force to apply
 		vrep.simx_opmode_streaming)
 	vrep.simxSetJointTargetVelocity(clientID,
 		joint_handles[1],
-		desiredSpeed, # force to apply
+		desiredSpeed/r, # force to apply
 		vrep.simx_opmode_streaming)
 
 	vrep.simxSetJointTargetVelocity(clientID,
 		throttle_handles[0],
-		desiredSpeed, # force to apply
+		desiredSpeed/r, # force to apply
 		vrep.simx_opmode_streaming)
 	vrep.simxSetJointTargetVelocity(clientID,
 		throttle_handles[1],
-		desiredSpeed, # force to apply
+		desiredSpeed/r, # force to apply
 		vrep.simx_opmode_streaming)
 
 def getVehicleState():
@@ -220,7 +220,7 @@ def getVehicleState():
 
 def callbackThrottle(msg):
 	global desiredSpeed
-	desiredSpeed=float(msg.data)/r
+	desiredSpeed=float(msg.data)
 def callbackSteering(msg):
 	global desiredSteeringAngle
 	desiredSteeringAngle=float(msg.data)

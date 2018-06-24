@@ -2,13 +2,12 @@ import numpy as np
 import cvxopt
 
 cvxopt.matrix_repr = cvxopt.printing.matrix_str_default
-cvxopt.printing.options['dformat'] = '%.2f'
+cvxopt.printing.options['dformat'] = '%.4f'
 cvxopt.printing.options['width'] = -1
 cvxopt.solvers.options['show_progress'] = False
-#cvxopt.solvers.options['maxiters'] = 10
-#cvxopt.solvers.options['abstol'] = 1e-10
-#cvxopt.solvers.options['reltol'] = 1e-10
-#cvxopt.solvers.options['feastol'] = 1e-10 
+cvxopt.solvers.options['maxiters'] = 30
+cvxopt.solvers.options['abstol'] = 1e-08
+cvxopt.solvers.options['feastol'] = 1e-08 
 
 def getControl(A, B, C, x, r, g1, g2, h1, h2, stateLength, controlLength, N, Q, R, S, Cbar):
 
@@ -69,7 +68,7 @@ def getControl(A, B, C, x, r, g1, g2, h1, h2, stateLength, controlLength, N, Q, 
 	else:
 		G=None
 		H=None
-	
+
 	sol=cvxopt.solvers.qp(P1,q,G,H)
 
 	return sol['x'], Ahat*x+Bhat*sol['x']+Chat
